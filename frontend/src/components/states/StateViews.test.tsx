@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../api/client'
+import { ErrorBoundary } from './ErrorBoundary'
 import { EmptyState, ErrorState, LoadingState } from './StateViews'
 
 describe('state views', () => {
@@ -35,6 +36,24 @@ describe('state views', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Try again/ }))
     expect(onRetry).toHaveBeenCalledOnce()
+  })
+
+  it('contains a crashing child in an error boundary', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    let crash = true
+    function Fragile() {
+      if (crash) throw new Error('boom')
+      return <p>recovered</p>
+    }
+    render(
+      <ErrorBoundary fallback={(e, reset) => <button onClick={reset}>{(e as Error).message}</button>}>
+        <Fragile />
+      </ErrorBoundary>,
+    )
+    crash = false
+    await userEvent.click(screen.getByRole('button', { name: 'boom' }))
+    expect(screen.getByText('recovered')).toBeInTheDocument()
+    vi.restoreAllMocks()
   })
 
   it('handles non-API errors without crashing', () => {

@@ -354,6 +354,71 @@ code {
 .legend-item .unit { stroke: none; }
 .legend-note { flex-basis: 100%; margin: 0; }
 
+/* 2D/3D switching */
+.graph-view { position: relative; height: 100%; display: grid; grid-template-rows: minmax(0, 1fr); }
+.graph-view > .state, .graph-view-fallback { padding: 1.25rem; display: grid; gap: 0.75rem; align-content: start; justify-items: start; }
+.view-switch {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.75rem;
+  z-index: 2;
+  display: flex;
+  gap: 0.25rem;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.chip:hover { color: var(--text); border-color: var(--accent); }
+.chip[aria-pressed='true'] { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)); }
+
+/* 3D network view */
+.network3d { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; height: 100%; }
+.network3d-canvas { position: relative; min-height: 320px; outline-offset: -2px; touch-action: none; }
+.network3d-canvas canvas { display: block; }
+.network3d-hover {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+.toolbar-hint { margin-left: 0.5rem; font-size: 0.8rem; color: var(--muted); }
+.label3d {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+.layer-jump {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+.legend-input-bg { background: var(--unit-input); }
+.legend-hidden-bg { background: var(--unit-hidden); }
+.legend-output-bg { background: var(--unit-output); }
+.swatch-line { width: 18px; height: 3px; border-radius: 2px; background: var(--accent); }
+
 @media (max-width: 1200px) {
   .studio-grid { grid-template-columns: 300px minmax(0, 1fr); }
   .inspector { grid-column: 1 / -1; }

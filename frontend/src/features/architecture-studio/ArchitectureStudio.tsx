@@ -2,8 +2,8 @@ import { Inspector } from '../../components/inspector/Inspector'
 import { ErrorState, LoadingState } from '../../components/states/StateViews'
 import { totalParameters } from '../../lib/graph'
 import { useModelStore } from '../../stores/modelStore'
-import { Network2D } from '../visualization-2d/Network2D'
 import { ArchitectureEditor } from './ArchitectureEditor'
+import { GraphView } from './GraphView'
 import { useModelSync } from './useModelSync'
 
 export function ArchitectureStudio() {
@@ -36,7 +36,7 @@ export function ArchitectureStudio() {
           {status.state === 'error' ? (
             <ErrorState error={status.error} onRetry={retry} />
           ) : graph ? (
-            <Network2D graph={graph} overlay={overlay} />
+            <GraphView graph={graph} overlay={overlay} />
           ) : validation.ok ? (
             <LoadingState label="Building the network graph…" />
           ) : (

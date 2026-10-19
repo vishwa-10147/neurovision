@@ -8,11 +8,12 @@ real trained models.
 > Status: Early development. Implemented so far: a dashboard with a
 > backend health check; the **Architecture Studio**, where you build a
 > dense network (validated limits, ReLU/sigmoid/tanh) whose graph is
-> built by the backend and rendered in 2D with pan, zoom, fit, and a
-> synchronized inspector; shared graph, event, and error contracts. No
-> PyTorch model exists yet, so there are no forward passes, training,
-> activations, or weights. The 3D view, Training Lab, Model Explorer,
-> and Learning Mode are shown in the UI as "planned". Features described as planned are not
+> built by the backend and shown in switchable 2D and 3D views (pan,
+> zoom, fit or orbit, detail limits) with a synchronized selection and
+> inspector; shared graph, event, and error contracts. No PyTorch model
+> exists yet, so there are no forward passes, training, activations, or
+> weights. The Training Lab, Model Explorer, and Learning Mode are shown
+> in the UI as "planned". The 3D view needs WebGL. Features described as planned are not
 > considered implemented until their code and tests exist.
 
 ## Vision
@@ -224,8 +225,9 @@ compatible.
 
 Request and response details, limits, and the in-memory storage
 limitation are in [`docs/api.md`](docs/api.md). Rendering decisions and
-the large-graph threshold are in
-[`docs/decisions/0001-2d-renderer.md`](docs/decisions/0001-2d-renderer.md).
+large-graph limits are in
+[`docs/decisions/0001-2d-renderer.md`](docs/decisions/0001-2d-renderer.md)
+and [`docs/decisions/0002-3d-renderer.md`](docs/decisions/0002-3d-renderer.md).
 
 Errors from any endpoint use a shared envelope,
 `{"error": {"code", "message", "details"}}`. The model graph, training

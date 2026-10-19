@@ -47,7 +47,7 @@ export interface GraphLayout {
 }
 
 /** Longest-path depth per node; nodes in cycles fall back to depth 0. */
-function columnsOf(graph: ModelGraph): Map<string, number> {
+export function columnsOf(graph: ModelGraph): Map<string, number> {
   const incoming = new Map<string, number>(graph.nodes.map((n) => [n.id, 0]))
   const outgoing = new Map<string, string[]>(graph.nodes.map((n) => [n.id, []]))
   for (const edge of graph.edges) {

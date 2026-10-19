@@ -7,6 +7,8 @@ export default defineConfig({
   plugins: [react()],
   // The app imports example fixtures from ../shared; allow serving only that.
   server: { port: 5173, strictPort: true, fs: { allow: ['.', '../shared'] } },
+  // The ~950 kB chunk is three.js + R3F, lazy-loaded only when the 3D view opens.
+  build: { chunkSizeWarningLimit: 1000 },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

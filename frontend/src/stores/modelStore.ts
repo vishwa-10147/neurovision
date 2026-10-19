@@ -21,7 +21,11 @@ export type ModelStatus =
   | { state: 'ready' }
   | { state: 'error'; error: unknown }
 
+export type ViewMode = '2d' | '3d'
+
 interface ModelState {
+  viewMode: ViewMode
+  setViewMode: (mode: ViewMode) => void
   config: DenseNetworkConfig
   graph: ModelGraph | null
   modelId: string | null
@@ -37,6 +41,8 @@ interface ModelState {
 }
 
 export const useModelStore = create<ModelState>()((set) => ({
+  viewMode: '2d',
+  setViewMode: (viewMode) => set({ viewMode }),
   config: EXAMPLE_CONFIG,
   graph: null,
   modelId: null,

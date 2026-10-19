@@ -129,6 +129,23 @@ describe('Architecture Studio', () => {
     expect(inspector().getByText('1,024')).toBeInTheDocument()
   })
 
+  it('keeps the selection when switching between 2D and 3D', async () => {
+    const { container } = await renderStudio()
+    await userEvent.click(container.querySelector('[data-unit="hidden_2#4"]') as Element)
+    const heading = /Hidden Layer 2 · unit 5 of 6/
+
+    // jsdom has no WebGL, so the 3D view explains why and offers a way back.
+    await userEvent.click(screen.getByRole('button', { name: '3D' }))
+    expect(screen.getByRole('button', { name: '3D' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('alert')).toHaveTextContent('The 3D view needs WebGL')
+    expect(useModelStore.getState().selection).toEqual({ kind: 'unit', nodeId: 'hidden_2', index: 4 })
+    expect(inspector().getByRole('heading', { name: heading })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Switch to 2D view' }))
+    expect(container.querySelector('[data-unit="hidden_2#4"]')).toHaveClass('is-selected')
+    expect(inspector().getByRole('heading', { name: heading })).toBeInTheDocument()
+  })
+
   it('shows backend validation errors with field details', async () => {
     vi.stubGlobal(
       'fetch',

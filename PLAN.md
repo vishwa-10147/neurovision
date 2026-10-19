@@ -84,13 +84,13 @@ a runnable, testable state.
 
 ### Tasks
 
--   [ ] Render the same normalized graph in Three.js.
--   [ ] Add orbit, zoom, pan, and camera reset.
--   [ ] Add selected-node and selected-edge highlighting.
--   [ ] Synchronize selection with 2D view and inspector.
--   [ ] Add 2D/3D switching without losing state.
--   [ ] Add initial performance safeguards and detail limits.
--   [ ] Respect reduced-motion settings for nonessential animation.
+-   [x] Render the same normalized graph in Three.js.
+-   [x] Add orbit, zoom, pan, and camera reset.
+-   [x] Add selected-node and selected-edge highlighting.
+-   [x] Synchronize selection with 2D view and inspector.
+-   [x] Add 2D/3D switching without losing state.
+-   [x] Add initial performance safeguards and detail limits.
+-   [x] Respect reduced-motion settings for nonessential animation.
 
 ### Acceptance criteria
 
