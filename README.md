@@ -6,9 +6,11 @@ learning how training changes model parameters, and inspecting supported
 real trained models.
 
 > Status: Early development. Implemented so far: the repository
-> scaffold, `GET /api/v1/health`, and a dashboard shell that reports
-> backend health. Other sections are shown in the UI as "planned" and
-> have no functionality yet. Features described as planned are not
+> scaffold, `GET /api/v1/health`, a dashboard shell that reports backend
+> health, a consistent API error format, and the shared model-graph and
+> training-event contracts (schemas and validators only; no endpoint
+> produces graphs or events yet). Other sections are shown in the UI as
+> "planned" and have no functionality yet. Features described as planned are not
 > considered implemented until their code and tests exist.
 
 ## Vision
@@ -218,10 +220,11 @@ compatible.
 {"status": "ok", "service": "neurovision-backend", "version": "0.1.0", "environment": "development"}
 ```
 
-The response contract is defined in
-`shared/schemas/health.schema.json` and mirrored by the Pydantic model
-(`backend/app/schemas/health.py`) and the Zod schema
-(`frontend/src/api/health.ts`). CORS origins come from
+Errors from any endpoint use a shared envelope,
+`{"error": {"code", "message", "details"}}`. The model graph, training
+event, error, and health contracts, and how to keep the Pydantic, JSON
+Schema, and Zod versions in sync, are documented in
+[`docs/schemas.md`](docs/schemas.md). CORS origins come from
 `NEUROVISION_CORS_ORIGINS`; the default allows only
 `http://localhost:5173` and `http://127.0.0.1:5173`.
 

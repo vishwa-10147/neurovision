@@ -4,7 +4,7 @@ import { fetchHealth, type HealthResponse } from '../api/health'
 export type BackendHealth =
   | { state: 'checking' }
   | { state: 'online'; data: HealthResponse; checkedAt: Date }
-  | { state: 'offline'; message: string; checkedAt: Date }
+  | { state: 'offline'; error: unknown; checkedAt: Date }
 
 const POLL_INTERVAL_MS = 15_000
 
@@ -21,8 +21,7 @@ export function useBackendHealth(): { health: BackendHealth; recheck: () => void
       setHealth({ state: 'online', data, checkedAt: new Date() })
     } catch (error) {
       if (controller.signal.aborted) return
-      const message = error instanceof Error ? error.message : 'Unknown error.'
-      setHealth({ state: 'offline', message, checkedAt: new Date() })
+      setHealth({ state: 'offline', error, checkedAt: new Date() })
     }
   }, [])
 

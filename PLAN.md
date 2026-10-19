@@ -47,10 +47,10 @@ a runnable, testable state.
 -   [x] Build navigation for Dashboard, Architecture Studio, Training
     Lab, Model Explorer, Learning Mode.
 -   [x] Add backend connection status.
--   [ ] Define model graph schema and event schema.
--   [ ] Create typed frontend API client.
--   [ ] Add loading, empty, and error states.
--   [ ] Add request/response validation and tests.
+-   [x] Define model graph schema and event schema.
+-   [x] Create typed frontend API client.
+-   [x] Add loading, empty, and error states.
+-   [x] Add request/response validation and tests.
 
 ### Acceptance criteria
 

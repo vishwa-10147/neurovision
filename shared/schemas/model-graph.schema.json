@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://neurovision.local/schemas/model-graph.schema.json",
+  "$defs": {
+    "Capabilities": {
+      "additionalProperties": false,
+      "description": "What the current model and runtime actually support.",
+      "properties": {
+        "graph": {
+          "title": "Graph",
+          "type": "boolean"
+        },
+        "inference": {
+          "title": "Inference",
+          "type": "boolean"
+        },
+        "training": {
+          "title": "Training",
+          "type": "boolean"
+        },
+        "activations": {
+          "title": "Activations",
+          "type": "boolean"
+        },
+        "gradients": {
+          "title": "Gradients",
+          "type": "boolean"
+        },
+        "attention": {
+          "title": "Attention",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "graph",
+        "inference",
+        "training",
+        "activations",
+        "gradients",
+        "attention"
+      ],
+      "title": "Capabilities",
+      "type": "object"
+    },
+    "GraphEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Target",
+          "type": "string"
+        },
+        "tensor_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tensor Name"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "target"
+      ],
+      "title": "GraphEdge",
+      "type": "object"
+    },
+    "GraphNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "op_type": {
+          "minLength": 1,
+          "title": "Op Type",
+          "type": "string"
+        },
+        "input_tensors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Input Tensors",
+          "type": "array"
+        },
+        "output_tensors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Output Tensors",
+          "type": "array"
+        },
+        "input_shapes": {
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Input Shapes",
+          "type": "array"
+        },
+        "output_shapes": {
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Output Shapes",
+          "type": "array"
+        },
+        "attributes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Attributes",
+          "type": "object"
+        },
+        "parameter_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParameterSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "unsupported": {
+          "default": false,
+          "title": "Unsupported",
+          "type": "boolean"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/JsonValue"
+            },
+            "type": "object"
+          },
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "op_type"
+      ],
+      "title": "GraphNode",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "ModelInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "source_format": {
+          "enum": [
+            "educational",
+            "onnx"
+          ],
+          "title": "Source Format",
+          "type": "string"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/Capabilities"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/JsonValue"
+            },
+            "type": "object"
+          },
+          "title": "Metadata",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "source_format",
+        "capabilities"
+      ],
+      "title": "ModelInfo",
+      "type": "object"
+    },
+    "ParameterSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "parameter_count": {
+          "minimum": 0,
+          "title": "Parameter Count",
+          "type": "integer"
+        },
+        "trainable": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trainable"
+        }
+      },
+      "required": [
+        "parameter_count"
+      ],
+      "title": "ParameterSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Normalized model graph, schema version 1.0.\n\nIntegrity rules not expressible in JSON Schema (enforced by the backend and\nfrontend validators): node ids and edge ids are unique; every edge source\nand target is an existing node id; non-empty input/output shape lists have\none entry per input/output tensor.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "model": {
+      "$ref": "#/$defs/ModelInfo"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/GraphNode"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "edges": {
+      "items": {
+        "$ref": "#/$defs/GraphEdge"
+      },
+      "title": "Edges",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "model",
+    "nodes",
+    "edges"
+  ],
+  "title": "ModelGraph",
+  "type": "object"
+}

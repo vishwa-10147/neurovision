@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "event_type": "training.step",
+  "job_id": "job_123",
+  "epoch": 1,
+  "step": 10,
+  "metrics": { "loss": 0.42, "accuracy": 0.81 },
+  "selected_activations": { "hidden_1": [0.12, 0.91, 0.0, 0.33] }
+}

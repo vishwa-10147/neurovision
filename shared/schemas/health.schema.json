@@ -1,15 +1,32 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://neurovision.local/schemas/health.schema.json",
-  "title": "HealthResponse",
-  "description": "Response of GET /api/v1/health. Mirrored by backend/app/schemas/health.py and frontend/src/api/health.ts.",
-  "type": "object",
-  "required": ["status", "service", "version", "environment"],
   "additionalProperties": false,
   "properties": {
-    "status": { "const": "ok" },
-    "service": { "type": "string" },
-    "version": { "type": "string" },
-    "environment": { "type": "string" }
-  }
+    "status": {
+      "const": "ok",
+      "title": "Status",
+      "type": "string"
+    },
+    "service": {
+      "title": "Service",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    },
+    "environment": {
+      "title": "Environment",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "service",
+    "version",
+    "environment"
+  ],
+  "title": "HealthResponse",
+  "type": "object"
 }

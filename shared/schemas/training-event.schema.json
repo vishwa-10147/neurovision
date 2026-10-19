@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://neurovision.local/schemas/training-event.schema.json",
+  "$defs": {
+    "TrainingCancelled": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "job_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Job Id",
+          "type": "string"
+        },
+        "event_type": {
+          "const": "training.cancelled",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "step": {
+          "minimum": 0,
+          "title": "Step",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "job_id",
+        "event_type",
+        "step"
+      ],
+      "title": "TrainingCancelled",
+      "type": "object"
+    },
+    "TrainingCompleted": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "job_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Job Id",
+          "type": "string"
+        },
+        "event_type": {
+          "const": "training.completed",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "epoch": {
+          "minimum": 0,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "step": {
+          "minimum": 0,
+          "title": "Step",
+          "type": "integer"
+        },
+        "metrics": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "maxProperties": 16,
+          "title": "Metrics",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema_version",
+        "job_id",
+        "event_type",
+        "epoch",
+        "step",
+        "metrics"
+      ],
+      "title": "TrainingCompleted",
+      "type": "object"
+    },
+    "TrainingFailed": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "job_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Job Id",
+          "type": "string"
+        },
+        "event_type": {
+          "const": "training.failed",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 500,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "job_id",
+        "event_type",
+        "message"
+      ],
+      "title": "TrainingFailed",
+      "type": "object"
+    },
+    "TrainingStarted": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "job_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Job Id",
+          "type": "string"
+        },
+        "event_type": {
+          "const": "training.started",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "model_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model Id",
+          "type": "string"
+        },
+        "total_epochs": {
+          "minimum": 1,
+          "title": "Total Epochs",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "job_id",
+        "event_type",
+        "model_id",
+        "total_epochs"
+      ],
+      "title": "TrainingStarted",
+      "type": "object"
+    },
+    "TrainingStep": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "job_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Job Id",
+          "type": "string"
+        },
+        "event_type": {
+          "const": "training.step",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "epoch": {
+          "minimum": 0,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "step": {
+          "minimum": 0,
+          "title": "Step",
+          "type": "integer"
+        },
+        "metrics": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "maxProperties": 16,
+          "title": "Metrics",
+          "type": "object"
+        },
+        "selected_activations": {
+          "additionalProperties": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 256,
+            "type": "array"
+          },
+          "maxProperties": 8,
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Selected Activations",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema_version",
+        "job_id",
+        "event_type",
+        "epoch",
+        "step",
+        "metrics"
+      ],
+      "title": "TrainingStep",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "training.cancelled": "#/$defs/TrainingCancelled",
+      "training.completed": "#/$defs/TrainingCompleted",
+      "training.failed": "#/$defs/TrainingFailed",
+      "training.started": "#/$defs/TrainingStarted",
+      "training.step": "#/$defs/TrainingStep"
+    },
+    "propertyName": "event_type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/TrainingStarted"
+    },
+    {
+      "$ref": "#/$defs/TrainingStep"
+    },
+    {
+      "$ref": "#/$defs/TrainingCompleted"
+    },
+    {
+      "$ref": "#/$defs/TrainingCancelled"
+    },
+    {
+      "$ref": "#/$defs/TrainingFailed"
+    }
+  ],
+  "title": "TrainingEvent"
+}

@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "model": {
+    "id": "imported_small_cnn",
+    "name": "small_cnn.onnx",
+    "source_format": "onnx",
+    "capabilities": {
+      "graph": true,
+      "inference": false,
+      "training": false,
+      "activations": false,
+      "gradients": false,
+      "attention": false
+    },
+    "metadata": { "onnx": { "opset": 17, "producer_name": "pytorch" } }
+  },
+  "nodes": [
+    {
+      "id": "conv_0",
+      "name": "/conv/Conv",
+      "op_type": "Conv",
+      "input_tensors": ["image", "conv.weight"],
+      "output_tensors": ["conv_out"],
+      "input_shapes": [["N", 3, "H", "W"], [8, 3, 3, 3]],
+      "output_shapes": [null],
+      "attributes": { "kernel_shape": [3, 3], "pads": [1, 1, 1, 1] }
+    },
+    {
+      "id": "custom_1",
+      "name": "/custom/MyOp",
+      "op_type": "MyCustomOp",
+      "input_tensors": ["conv_out"],
+      "output_tensors": ["custom_out"],
+      "input_shapes": [null],
+      "output_shapes": [["N", null, null, null]],
+      "unsupported": true,
+      "metadata": { "onnx": { "domain": "com.example" } }
+    }
+  ],
+  "edges": [
+    { "id": "e_conv_0_custom_1", "source": "conv_0", "target": "custom_1", "tensor_name": "conv_out" }
+  ],
+  "warnings": ["Operator 'MyCustomOp' (domain com.example) is not supported; it is shown for inspection only."]
+}

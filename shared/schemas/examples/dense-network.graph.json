@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "model": {
+    "id": "example_dense",
+    "name": "Example Dense Network (2-4-2)",
+    "source_format": "educational",
+    "capabilities": {
+      "graph": true,
+      "inference": true,
+      "training": true,
+      "activations": true,
+      "gradients": true,
+      "attention": false
+    }
+  },
+  "nodes": [
+    {
+      "id": "input",
+      "name": "Input",
+      "op_type": "Input",
+      "output_tensors": ["x"],
+      "output_shapes": [["batch", 2]]
+    },
+    {
+      "id": "hidden_1",
+      "name": "Hidden Layer 1",
+      "op_type": "Linear",
+      "input_tensors": ["x"],
+      "output_tensors": ["h1"],
+      "input_shapes": [["batch", 2]],
+      "output_shapes": [["batch", 4]],
+      "attributes": { "in_features": 2, "out_features": 4, "activation": "relu" },
+      "parameter_summary": { "parameter_count": 12, "trainable": true }
+    },
+    {
+      "id": "output",
+      "name": "Output Layer",
+      "op_type": "Linear",
+      "input_tensors": ["h1"],
+      "output_tensors": ["logits"],
+      "input_shapes": [["batch", 4]],
+      "output_shapes": [["batch", 2]],
+      "attributes": { "in_features": 4, "out_features": 2, "activation": null },
+      "parameter_summary": { "parameter_count": 10, "trainable": true }
+    }
+  ],
+  "edges": [
+    { "id": "e_input_hidden_1", "source": "input", "target": "hidden_1", "tensor_name": "x" },
+    { "id": "e_hidden_1_output", "source": "hidden_1", "target": "output", "tensor_name": "h1" }
+  ]
+}

@@ -1,0 +1,103 @@
+[
+  {
+    "kind": "graph",
+    "description": "duplicate node id",
+    "document": {
+      "schema_version": "1.0",
+      "model": { "id": "m", "name": "m", "source_format": "educational", "capabilities": { "graph": true, "inference": false, "training": false, "activations": false, "gradients": false, "attention": false } },
+      "nodes": [ { "id": "a", "name": "A", "op_type": "Input" }, { "id": "a", "name": "A2", "op_type": "Linear" } ],
+      "edges": []
+    }
+  },
+  {
+    "kind": "graph",
+    "description": "edge references an unknown node",
+    "document": {
+      "schema_version": "1.0",
+      "model": { "id": "m", "name": "m", "source_format": "educational", "capabilities": { "graph": true, "inference": false, "training": false, "activations": false, "gradients": false, "attention": false } },
+      "nodes": [ { "id": "a", "name": "A", "op_type": "Input" } ],
+      "edges": [ { "id": "e", "source": "a", "target": "missing" } ]
+    }
+  },
+  {
+    "kind": "graph",
+    "description": "layout coordinates are not part of the semantic graph",
+    "document": {
+      "schema_version": "1.0",
+      "model": { "id": "m", "name": "m", "source_format": "educational", "capabilities": { "graph": true, "inference": false, "training": false, "activations": false, "gradients": false, "attention": false } },
+      "nodes": [ { "id": "a", "name": "A", "op_type": "Input", "x": 10, "y": 20 } ],
+      "edges": []
+    }
+  },
+  {
+    "kind": "graph",
+    "description": "negative dimension",
+    "document": {
+      "schema_version": "1.0",
+      "model": { "id": "m", "name": "m", "source_format": "educational", "capabilities": { "graph": true, "inference": false, "training": false, "activations": false, "gradients": false, "attention": false } },
+      "nodes": [ { "id": "a", "name": "A", "op_type": "Input", "output_tensors": ["x"], "output_shapes": [[-1, 4]] } ],
+      "edges": []
+    }
+  },
+  {
+    "kind": "graph",
+    "description": "shape count does not match tensor count",
+    "document": {
+      "schema_version": "1.0",
+      "model": { "id": "m", "name": "m", "source_format": "educational", "capabilities": { "graph": true, "inference": false, "training": false, "activations": false, "gradients": false, "attention": false } },
+      "nodes": [ { "id": "a", "name": "A", "op_type": "Input", "output_tensors": ["x"], "output_shapes": [[1], [2]] } ],
+      "edges": []
+    }
+  },
+  {
+    "kind": "graph",
+    "description": "unsupported schema version",
+    "document": {
+      "schema_version": "2.0",
+      "model": { "id": "m", "name": "m", "source_format": "educational", "capabilities": { "graph": true, "inference": false, "training": false, "activations": false, "gradients": false, "attention": false } },
+      "nodes": [],
+      "edges": []
+    }
+  },
+  {
+    "kind": "graph",
+    "description": "missing capability flag",
+    "document": {
+      "schema_version": "1.0",
+      "model": { "id": "m", "name": "m", "source_format": "onnx", "capabilities": { "graph": true } },
+      "nodes": [],
+      "edges": []
+    }
+  },
+  {
+    "kind": "event",
+    "description": "unknown event type",
+    "document": { "schema_version": "1.0", "event_type": "training.paused", "job_id": "j" }
+  },
+  {
+    "kind": "event",
+    "description": "too many activation values for one layer",
+    "document": {
+      "schema_version": "1.0", "event_type": "training.step", "job_id": "j", "epoch": 0, "step": 0, "metrics": {},
+      "selected_activations": { "hidden_1": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }
+    }
+  },
+  {
+    "kind": "event",
+    "description": "too many activation layers",
+    "document": {
+      "schema_version": "1.0", "event_type": "training.step", "job_id": "j", "epoch": 0, "step": 0, "metrics": {},
+      "selected_activations": { "l1": [0], "l2": [0], "l3": [0], "l4": [0], "l5": [0], "l6": [0], "l7": [0], "l8": [0], "l9": [0] }
+    }
+  },
+  {
+    "kind": "event",
+    "description": "negative step",
+    "document": { "schema_version": "1.0", "event_type": "training.cancelled", "job_id": "j", "step": -1 }
+  },
+  {
+    "kind": "event",
+    "description": "zero total epochs",
+    "document": { "schema_version": "1.0", "event_type": "training.started", "job_id": "j", "model_id": "m", "total_epochs": 0 }
+  }
+]

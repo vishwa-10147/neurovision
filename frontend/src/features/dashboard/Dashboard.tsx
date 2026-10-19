@@ -1,5 +1,6 @@
 import { RefreshCw } from 'lucide-react'
 import { API_BASE_URL } from '../../api/client'
+import { ErrorState, LoadingState } from '../../components/states/StateViews'
 import type { BackendHealth } from '../../hooks/useBackendHealth'
 
 interface DashboardProps {
@@ -18,18 +19,15 @@ export function Dashboard({ health, onRecheck }: DashboardProps) {
       <div className="card">
         <div className="card-header">
           <h2>Backend service</h2>
-          <button
-            type="button"
-            onClick={onRecheck}
-            disabled={health.state === 'checking'}
-            className="button"
-          >
-            <RefreshCw size={16} aria-hidden="true" />
-            Check again
-          </button>
+          {health.state === 'online' && (
+            <button type="button" onClick={onRecheck} className="button">
+              <RefreshCw size={16} aria-hidden="true" />
+              Check again
+            </button>
+          )}
         </div>
 
-        {health.state === 'checking' && <p className="muted">Checking {API_BASE_URL}…</p>}
+        {health.state === 'checking' && <LoadingState label={`Checking ${API_BASE_URL}…`} />}
 
         {health.state === 'online' && (
           <dl className="facts">
@@ -46,16 +44,7 @@ export function Dashboard({ health, onRecheck }: DashboardProps) {
           </dl>
         )}
 
-        {health.state === 'offline' && (
-          <div className="error" role="alert">
-            <p>{health.message}</p>
-            <p className="muted">
-              Start it from <code>backend/</code> with the virtual environment active:{' '}
-              <code>uvicorn app.main:app --reload --port 8000</code>. If it runs elsewhere,
-              set <code>VITE_API_BASE_URL</code>.
-            </p>
-          </div>
-        )}
+        {health.state === 'offline' && <ErrorState error={health.error} onRetry={onRecheck} />}
       </div>
     </section>
   )
