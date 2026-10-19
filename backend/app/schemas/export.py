@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from app.schemas.architecture import DenseNetworkConfig
 from app.schemas.errors import ErrorResponse
 from app.schemas.events import training_event_adapter
 from app.schemas.graph import ModelGraph
@@ -35,6 +36,11 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "training-event.schema.json",
             "TrainingEvent",
             training_event_adapter.json_schema(),
+        ),
+        "dense-network-config.schema.json": _with_header(
+            "dense-network-config.schema.json",
+            "DenseNetworkConfig",
+            DenseNetworkConfig.model_json_schema(),
         ),
         "error.schema.json": _with_header(
             "error.schema.json", "ErrorResponse", ErrorResponse.model_json_schema()

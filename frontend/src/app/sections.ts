@@ -23,8 +23,8 @@ export const SECTIONS: Section[] = [
     id: 'studio',
     label: 'Architecture Studio',
     icon: Network,
-    milestone: 'Milestones 2–3',
-    summary: 'Build dense networks and explore them in synchronized 2D and 3D views.',
+    milestone: null,
+    summary: 'Build dense networks and explore them in 2D (3D arrives in Milestone 3).',
   },
   {
     id: 'training',

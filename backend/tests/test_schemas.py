@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from app.schemas.architecture import DenseNetworkConfig
 from app.schemas.events import TrainingStep, training_event_adapter
 from app.schemas.export import SHARED_SCHEMAS_DIR, build_schemas, render
 from app.schemas.graph import ModelGraph
@@ -45,8 +46,14 @@ def test_invalid_cases_are_rejected(case: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         if case["kind"] == "graph":
             ModelGraph.model_validate(case["document"])
+        elif case["kind"] == "architecture":
+            DenseNetworkConfig.model_validate(case["document"])
         else:
             training_event_adapter.validate_python(case["document"])
+
+
+def test_example_config_is_valid() -> None:
+    DenseNetworkConfig.model_validate(_load(EXAMPLES / "dense-network.config.json"))
 
 
 def test_non_finite_metrics_are_rejected() -> None:

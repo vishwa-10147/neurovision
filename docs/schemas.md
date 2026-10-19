@@ -11,6 +11,7 @@ browser.
 |-----------------|-----------------------------------|--------------------------------------------|----------------------------------|
 | Model graph     | `app/schemas/graph.py`            | `shared/schemas/model-graph.schema.json`   | `src/types/graph.ts`             |
 | Training events | `app/schemas/events.py`           | `shared/schemas/training-event.schema.json`| `src/types/events.ts`            |
+| Dense config    | `app/schemas/architecture.py`     | `shared/schemas/dense-network-config.schema.json` | `src/types/architecture.ts` |
 | Error envelope  | `app/schemas/errors.py`           | `shared/schemas/error.schema.json`         | `src/api/client.ts`              |
 | Health          | `app/schemas/health.py`           | `shared/schemas/health.schema.json`        | `src/api/health.ts`              |
 

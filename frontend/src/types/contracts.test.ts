@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import exampleConfig from '../../../shared/schemas/examples/dense-network.config.json'
 import denseGraph from '../../../shared/schemas/examples/dense-network.graph.json'
 import invalidCases from '../../../shared/schemas/examples/invalid-cases.json'
 import onnxGraph from '../../../shared/schemas/examples/onnx-import.graph.json'
 import stepEvent from '../../../shared/schemas/examples/training-step.event.json'
+import { DenseNetworkConfigSchema } from './architecture'
 import { TrainingEventSchema } from './events'
 import { ModelGraphSchema } from './graph'
 
@@ -29,8 +31,17 @@ describe('shared contract fixtures', () => {
   })
 
   it.each(invalidCases.map((c) => [c.description, c] as const))('rejects: %s', (_, testCase) => {
-    const schema = testCase.kind === 'graph' ? ModelGraphSchema : TrainingEventSchema
+    const schema =
+      testCase.kind === 'graph'
+        ? ModelGraphSchema
+        : testCase.kind === 'architecture'
+          ? DenseNetworkConfigSchema
+          : TrainingEventSchema
     expect(schema.safeParse(testCase.document).success).toBe(false)
+  })
+
+  it('accepts the example dense-network config', () => {
+    expect(DenseNetworkConfigSchema.safeParse(exampleConfig).success).toBe(true)
   })
 
   it('explains integrity errors with the offending id', () => {

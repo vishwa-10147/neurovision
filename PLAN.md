@@ -62,15 +62,15 @@ a runnable, testable state.
 
 ### Tasks
 
--   [ ] Define editable dense-network configuration.
--   [ ] Add input, hidden, and output layer controls.
--   [ ] Support safe layer width limits.
--   [ ] Add ReLU, sigmoid, and tanh configuration.
--   [ ] Render architecture in 2D.
--   [ ] Implement selection and inspector.
--   [ ] Add zoom, pan, fit-to-view, and reset.
--   [ ] Display parameter counts when correct.
--   [ ] Add validation for invalid configurations.
+-   [x] Define editable dense-network configuration.
+-   [x] Add input, hidden, and output layer controls.
+-   [x] Support safe layer width limits.
+-   [x] Add ReLU, sigmoid, and tanh configuration.
+-   [x] Render architecture in 2D.
+-   [x] Implement selection and inspector.
+-   [x] Add zoom, pan, fit-to-view, and reset.
+-   [x] Display parameter counts when correct.
+-   [x] Add validation for invalid configurations.
 
 ### Acceptance criteria
 

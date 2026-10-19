@@ -1,0 +1,10 @@
+{
+  "name": "Two-moons classifier",
+  "input_units": 2,
+  "hidden_layers": [
+    { "units": 8, "activation": "relu" },
+    { "units": 6, "activation": "tanh" }
+  ],
+  "output_units": 2,
+  "output_activation": null
+}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { SECTIONS, type SectionId } from './app/sections'
 import { HealthIndicator } from './components/HealthIndicator'
+import { ArchitectureStudio } from './features/architecture-studio/ArchitectureStudio'
 import { Dashboard } from './features/dashboard/Dashboard'
 import { PlannedSection } from './features/planned/PlannedSection'
 import { useBackendHealth } from './hooks/useBackendHealth'
@@ -37,6 +38,8 @@ export default function App() {
       <main className="content">
         {section.id === 'dashboard' ? (
           <Dashboard health={health} onRecheck={recheck} />
+        ) : section.id === 'studio' ? (
+          <ArchitectureStudio />
         ) : (
           <PlannedSection section={section} />
         )}

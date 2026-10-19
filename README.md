@@ -5,12 +5,14 @@ for exploring network architecture, observing signal propagation,
 learning how training changes model parameters, and inspecting supported
 real trained models.
 
-> Status: Early development. Implemented so far: the repository
-> scaffold, `GET /api/v1/health`, a dashboard shell that reports backend
-> health, a consistent API error format, and the shared model-graph and
-> training-event contracts (schemas and validators only; no endpoint
-> produces graphs or events yet). Other sections are shown in the UI as
-> "planned" and have no functionality yet. Features described as planned are not
+> Status: Early development. Implemented so far: a dashboard with a
+> backend health check; the **Architecture Studio**, where you build a
+> dense network (validated limits, ReLU/sigmoid/tanh) whose graph is
+> built by the backend and rendered in 2D with pan, zoom, fit, and a
+> synchronized inspector; shared graph, event, and error contracts. No
+> PyTorch model exists yet, so there are no forward passes, training,
+> activations, or weights. The 3D view, Training Lab, Model Explorer,
+> and Learning Mode are shown in the UI as "planned". Features described as planned are not
 > considered implemented until their code and tests exist.
 
 ## Vision
@@ -214,11 +216,16 @@ compatible.
 
 ## Implemented API
 
-`GET /api/v1/health` → `200 OK`
+| Endpoint                                | Purpose                                         |
+|-----------------------------------------|-------------------------------------------------|
+| `GET /api/v1/health`                    | Service health                                  |
+| `POST /api/v1/models/educational`       | Validate a dense-network config, build its graph |
+| `GET /api/v1/models/{model_id}/graph`   | Fetch a created model's normalized graph        |
 
-``` json
-{"status": "ok", "service": "neurovision-backend", "version": "0.1.0", "environment": "development"}
-```
+Request and response details, limits, and the in-memory storage
+limitation are in [`docs/api.md`](docs/api.md). Rendering decisions and
+the large-graph threshold are in
+[`docs/decisions/0001-2d-renderer.md`](docs/decisions/0001-2d-renderer.md).
 
 Errors from any endpoint use a shared envelope,
 `{"error": {"code", "message", "details"}}`. The model graph, training

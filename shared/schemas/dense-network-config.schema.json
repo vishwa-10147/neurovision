@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://neurovision.local/schemas/dense-network-config.schema.json",
+  "$defs": {
+    "HiddenLayerConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "units": {
+          "maximum": 32,
+          "minimum": 1,
+          "title": "Units",
+          "type": "integer"
+        },
+        "activation": {
+          "enum": [
+            "relu",
+            "sigmoid",
+            "tanh"
+          ],
+          "title": "Activation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "units",
+        "activation"
+      ],
+      "title": "HiddenLayerConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "input_units": {
+      "maximum": 16,
+      "minimum": 1,
+      "title": "Input Units",
+      "type": "integer"
+    },
+    "hidden_layers": {
+      "items": {
+        "$ref": "#/$defs/HiddenLayerConfig"
+      },
+      "maxItems": 6,
+      "title": "Hidden Layers",
+      "type": "array"
+    },
+    "output_units": {
+      "maximum": 10,
+      "minimum": 1,
+      "title": "Output Units",
+      "type": "integer"
+    },
+    "output_activation": {
+      "anyOf": [
+        {
+          "enum": [
+            "relu",
+            "sigmoid",
+            "tanh"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output Activation"
+    }
+  },
+  "required": [
+    "name",
+    "input_units",
+    "hidden_layers",
+    "output_units"
+  ],
+  "title": "DenseNetworkConfig",
+  "type": "object"
+}
