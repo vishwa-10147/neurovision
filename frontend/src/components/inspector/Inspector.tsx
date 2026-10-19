@@ -2,13 +2,15 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { ApiError } from '../../api/client'
 import { useTensor, type TensorState } from '../../hooks/useTensor'
-import { findNode, formatShape, unitCount } from '../../lib/graph'
+import { findNode, formatShape, showsUnits, unitCount } from '../../lib/graph'
 import { formatValue } from '../../lib/values'
-import { currentForward, useModelStore, type Selection } from '../../stores/modelStore'
+import { useModelView } from '../../app/modelView'
+import type { Selection } from '../../stores/modelStore'
 import { ACTIVATION_LABELS, type Activation } from '../../types/architecture'
 import type { GraphNode, ModelGraph } from '../../types/graph'
 import type { TensorResponse } from '../../types/training'
 import { EmptyState } from '../states/StateViews'
+import { OperatorDetails, TensorEdgeDetails } from './OperatorDetails'
 
 const RUN_FORWARD_HINT = 'Run a forward pass to see the value this model computes.'
 const TRAIN_HINT = 'Train the model to see gradients.'
@@ -16,7 +18,7 @@ const TRAIN_HINT = 'Train the model to see gradients.'
 const fmt = (v: number) => formatValue(v, 4)
 
 export function Inspector({ graph }: { graph: ModelGraph | null }) {
-  const selection = useModelStore((s) => s.selection)
+  const { selection } = useModelView()
   return (
     <aside className="inspector" aria-labelledby="inspector-title">
       <h2 id="inspector-title">Inspector</h2>
@@ -33,6 +35,17 @@ export function Inspector({ graph }: { graph: ModelGraph | null }) {
 }
 
 function SelectionDetails({ graph, selection }: { graph: ModelGraph; selection: NonNullable<Selection> }) {
+  if (!showsUnits(graph)) {
+    // Imported operator graphs: operators and the tensors between them.
+    if (selection.kind === 'connection') {
+      const edge = graph.edges.find((e) => e.id === selection.edgeId)
+      const source = edge && findNode(graph, edge.source)
+      const target = edge && findNode(graph, edge.target)
+      return edge && source && target ? <TensorEdgeDetails edge={edge} source={source} target={target} /> : null
+    }
+    const node = findNode(graph, selection.nodeId)
+    return node ? <OperatorDetails node={node} /> : null
+  }
   if (selection.kind === 'connection') {
     const edge = graph.edges.find((e) => e.id === selection.edgeId)
     const source = edge && findNode(graph, edge.source)
@@ -48,14 +61,13 @@ function SelectionDetails({ graph, selection }: { graph: ModelGraph; selection: 
 
 /** Tensors of the selected model, refreshed whenever its weights change. */
 function useModelTensor(tensorId: string | null): TensorState {
-  const modelId = useModelStore((s) => s.modelId)
-  const version = useModelStore((s) => s.weightsVersion)
+  const { modelId, weightsVersion: version } = useModelView()
   return useTensor(modelId, tensorId, version)
 }
 
 /** Measured values for one layer from the latest forward pass, if current. */
 function useLayerValues(nodeId: string) {
-  const forward = useModelStore(currentForward)
+  const { forward } = useModelView()
   const values = forward?.response.activations[nodeId]
   return values ? { pre: values.pre?.[0] ?? null, post: values.post[0] } : null
 }
@@ -115,7 +127,7 @@ function LayerDetails({ node }: { node: GraphNode }) {
 }
 
 function UnitDetails({ graph, node, index }: { graph: ModelGraph; node: GraphNode; index: number }) {
-  const select = useModelStore((s) => s.select)
+  const { select } = useModelView()
   const count = unitCount(node) ?? 0
   const inFeatures = numberAttr(node, 'in_features')
   const learned = node.op_type !== 'Input'
@@ -156,7 +168,7 @@ function UnitDetails({ graph, node, index }: { graph: ModelGraph; node: GraphNod
         )}
         {learned && (
           <Fact label="Bias">
-            <TensorView state={bias} render={(t) => <span className="mono">{fmt(t.values[index])}</span>} />
+            <TensorView state={bias} render={(t) => <span className="mono">{valueText(t.values[index])}</span>} />
           </Fact>
         )}
         {values && learned && values.pre && (
@@ -217,14 +229,14 @@ function ConnectionDetails({
         <Fact label={single ? 'Weight' : 'Weights'}>
           <TensorView
             state={weights}
-            render={(t) => (single ? <span className="mono">{fmt(at(t) ?? Number.NaN)}</span> : summaryText(t))}
+            render={(t) => (single ? <span className="mono">{valueText(at(t))}</span> : summaryText(t))}
           />
         </Fact>
         <Fact label="Gradient">
           <TensorView
             state={gradients}
             missing={TRAIN_HINT}
-            render={(t) => (single ? <span className="mono">{fmt(at(t) ?? Number.NaN)}</span> : summaryText(t))}
+            render={(t) => (single ? <span className="mono">{valueText(at(t))}</span> : summaryText(t))}
           />
         </Fact>
       </dl>
@@ -253,12 +265,17 @@ function TensorView({
 
 function summaryText(t: TensorResponse) {
   const s = t.summary
+  if (!s) return <span className="muted">No finite values.</span>
   return (
     <span className="mono">
       min {fmt(s.min)}, max {fmt(s.max)}, mean {fmt(s.mean)}
+      {t.non_finite_count > 0 && ` (${t.non_finite_count} NaN/∞ excluded)`}
     </span>
   )
 }
+
+/** A single tensor value; null marks NaN or infinity, which JSON cannot carry. */
+const valueText = (v: number | null | undefined) => (v === null || v === undefined ? 'NaN/∞' : fmt(v))
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (

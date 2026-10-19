@@ -111,9 +111,12 @@ export const TensorResponseSchema = z.object({
   shape: z.array(z.number().int()),
   dtype: z.string(),
   count: z.number().int(),
-  summary: z.object({ min: z.number(), max: z.number(), mean: z.number(), std: z.number() }),
+  /** Over finite values only; null when there are none. */
+  summary: z.object({ min: z.number(), max: z.number(), mean: z.number(), std: z.number() }).nullable(),
+  /** NaN or infinite values: excluded from the summary and null in `values`. */
+  non_finite_count: z.number().int().default(0),
   offset: z.number().int(),
-  values: z.array(z.number()),
+  values: z.array(z.number().nullable()),
   truncated: z.boolean(),
 })
 export type TensorResponse = z.infer<typeof TensorResponseSchema>

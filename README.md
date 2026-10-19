@@ -15,12 +15,18 @@ real trained models.
 > -   **Training Lab**: train on deterministic moons, circles, or spiral
 >     data in a background job, with live loss and accuracy charts and
 >     streamed activations over a WebSocket, plus cancellation.
+> -   **Model Explorer**: import a trained ONNX model (e.g. exported from
+>     your own PyTorch project) or a built-in sample, and inspect its
+>     operator graph in 2D and 3D, its shapes and attributes, and its
+>     weights. Files are parsed safely for inspection and never run. See
+>     [docs/importing-onnx.md](docs/importing-onnx.md).
 > -   A dashboard with a backend health check, and shared graph, event,
 >     and error contracts.
 >
-> The Model Explorer (ONNX) and Learning Mode are shown in the UI as
-> "planned". The 3D view needs WebGL. Features described as planned are
-> not considered implemented until their code and tests exist.
+> Learning Mode is shown in the UI as "planned", and running imported
+> models arrives in Milestone 6. The 3D view needs WebGL. Features
+> described as planned are not considered implemented until their code
+> and tests exist.
 
 ## Vision
 
@@ -108,9 +114,9 @@ git --version
 ## Setup on Windows PowerShell
 
 The commands below were verified on Windows 11 with Node.js 24,
-Python 3.12.10, and the CPU build of PyTorch 2.14.1. Only the
-dependencies the implemented features need are installed; ONNX and
-React Flow are added in the milestones that use them.
+Python 3.12.10, the CPU build of PyTorch 2.14.1, and onnx 1.23.2. Only
+the dependencies the implemented features need are installed; ONNX
+Runtime and React Flow are added in the milestones that use them.
 
 ### 1. Backend
 
@@ -235,13 +241,17 @@ compatible.
 | `GET /api/v1/training/{job_id}`         | Job status                                      |
 | `POST /api/v1/training/{job_id}/cancel` | Cancel a job                                    |
 | `WS /api/v1/training/{job_id}/events`   | Replayed and live training events               |
+| `POST /api/v1/import/onnx?filename=…`   | Import an ONNX file (raw body) for inspection   |
+| `GET /api/v1/import/onnx/samples`       | List built-in sample models                     |
+| `POST /api/v1/import/onnx/samples/{name}` | Import a sample model                         |
 
 Request and response details, limits, and the in-memory storage
 limitation are in [`docs/api.md`](docs/api.md). Design decisions are in
 [`docs/decisions/`](docs/decisions/): the
 [2D renderer](docs/decisions/0001-2d-renderer.md), the
-[3D renderer](docs/decisions/0002-3d-renderer.md), and
-[training jobs and event streaming](docs/decisions/0003-training-jobs.md).
+[3D renderer](docs/decisions/0002-3d-renderer.md),
+[training jobs and event streaming](docs/decisions/0003-training-jobs.md),
+and [ONNX import](docs/decisions/0004-onnx-import.md).
 
 Errors from any endpoint use a shared envelope,
 `{"error": {"code", "message", "details"}}`. The model graph, training

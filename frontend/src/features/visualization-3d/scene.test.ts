@@ -78,6 +78,14 @@ describe('planScene', () => {
     expect(imported.layerLinks).toHaveLength(1)
   })
 
+  it('draws imported operator graphs as labeled blocks and links', () => {
+    const imported = planScene({ ...example, model: { ...example.model, source_format: 'onnx' } })
+    expect(imported.units).toHaveLength(0)
+    expect(imported.connections).toBeNull()
+    expect(imported.layers.map((l) => l.label)).toEqual(['Input', 'Linear', 'Linear', 'Linear'])
+    expect(imported.layerLinks).toHaveLength(3)
+  })
+
   it('does not modify the graph', () => {
     const before = JSON.stringify(example)
     planScene(example)

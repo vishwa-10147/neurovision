@@ -10,7 +10,7 @@ import { denseGraph } from './denseGraph'
 export type Route = (method: string, path: string, body: unknown) => Response | undefined
 
 export interface FakeBackend {
-  calls: { method: string; path: string; body: unknown }[]
+  calls: { method: string; path: string; body: unknown; query: Record<string, string> }[]
   /** Routes checked before the defaults; return undefined to fall through. */
   use: (route: Route) => void
 }
@@ -25,10 +25,12 @@ export function fakeBackend(): FakeBackend {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
-      const path = new URL(url).pathname.replace('/api/v1', '')
+      const parsed = new URL(url)
+      const path = parsed.pathname.replace('/api/v1', '')
       const method = init?.method ?? 'GET'
-      const body = init?.body ? JSON.parse(String(init.body)) : undefined
-      calls.push({ method, path, body })
+      // JSON bodies are decoded; raw uploads (Blob/File) are kept as-is.
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body
+      calls.push({ method, path, body, query: Object.fromEntries(parsed.searchParams) })
       for (const route of routes) {
         const response = route(method, path, body)
         if (response) return response

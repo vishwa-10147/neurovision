@@ -3,7 +3,7 @@
  * Pure functions only, so layout, detail limits, and highlighting are testable
  * without WebGL. The React Three Fiber components just draw this plan.
  */
-import { unitCount } from '../../lib/graph'
+import { showsUnits, unitCount } from '../../lib/graph'
 import type { Selection } from '../../stores/modelStore'
 import type { ModelGraph } from '../../types/graph'
 import { columnsOf, type LayerRole } from '../visualization-2d/layout'
@@ -19,6 +19,10 @@ export const LABEL_CLEARANCE = 0.9
 export const MAX_3D_UNITS = 2048
 /** Above this many unit-to-unit connections, one link per layer pair is drawn. */
 export const MAX_3D_CONNECTIONS = 8000
+/** Above this many nodes, the 3D view defers to the 2D view. */
+export const MAX_3D_NODES = 1500
+/** Above this many nodes, only the selected node is labeled. */
+export const MAX_3D_LABELS = 60
 
 export interface Unit3D {
   nodeId: string
@@ -30,6 +34,9 @@ export interface Unit3D {
 export interface Layer3D {
   nodeId: string
   name: string
+  /** Text drawn in the scene: the layer name, or the operator type. */
+  label: string
+  unsupported: boolean
   role: LayerRole
   center: Vec3
   /** Extent of the layer's unit grid (or block). */
@@ -85,7 +92,9 @@ function gridPositions(count: number, x: number): Vec3[] {
 export function planScene(graph: ModelGraph): Scene3D {
   const columns = columnsOf(graph)
   const hasOutgoing = new Set(graph.edges.map((e) => e.source))
-  const counts = new Map(graph.nodes.map((n) => [n.id, unitCount(n)]))
+  // Operator graphs (imports) draw one block per node, never neuron grids.
+  const units = showsUnits(graph)
+  const counts = new Map(graph.nodes.map((n) => [n.id, units ? unitCount(n) : null]))
   const totalUnits = [...counts.values()].reduce<number>((sum, c) => sum + (c ?? 0), 0)
   const unitsAsBlocks = totalUnits > MAX_3D_UNITS
 
@@ -98,7 +107,7 @@ export function planScene(graph: ModelGraph): Scene3D {
 
   const layers: Layer3D[] = []
   const layerById = new Map<string, Layer3D>()
-  const units: Unit3D[] = []
+  const unitList: Unit3D[] = []
 
   for (const node of graph.nodes) {
     const column = columns.get(node.id) ?? 0
@@ -114,8 +123,8 @@ export function planScene(graph: ModelGraph): Scene3D {
     if (count !== null && !unitsAsBlocks) {
       const positions = gridPositions(count, x).map(([px, py, pz]): Vec3 => [px, py, pz + zOffset])
       unitIds = positions.map((position, index) => {
-        units.push({ nodeId: node.id, index, role, position })
-        return units.length - 1
+        unitList.push({ nodeId: node.id, index, role, position })
+        return unitList.length - 1
       })
       const cols = Math.ceil(Math.sqrt(count))
       const rows = Math.ceil(count / cols)
@@ -126,7 +135,16 @@ export function planScene(graph: ModelGraph): Scene3D {
       size = [UNIT_SPACING, side, side]
     }
 
-    const layer: Layer3D = { nodeId: node.id, name: node.name, role, center: [x, 0, zOffset], size, unitIds }
+    const layer: Layer3D = {
+      nodeId: node.id,
+      name: node.name,
+      label: units ? node.name : node.op_type,
+      unsupported: node.unsupported,
+      role,
+      center: [x, 0, zOffset],
+      size,
+      unitIds,
+    }
     layers.push(layer)
     layerById.set(node.id, layer)
   }
@@ -168,7 +186,7 @@ export function planScene(graph: ModelGraph): Scene3D {
   return {
     layers,
     layerById,
-    units,
+    units: unitList,
     connections,
     layerLinks,
     detail: {

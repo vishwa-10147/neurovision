@@ -37,7 +37,7 @@ export const SECTIONS: Section[] = [
     id: 'explorer',
     label: 'Model Explorer',
     icon: Boxes,
-    milestone: 'Milestone 5',
+    milestone: null,
     summary: 'Import ONNX models and inspect operators, shapes, and tensor summaries.',
   },
   {

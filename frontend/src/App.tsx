@@ -3,6 +3,7 @@ import { SECTIONS, type SectionId } from './app/sections'
 import { HealthIndicator } from './components/HealthIndicator'
 import { ArchitectureStudio } from './features/architecture-studio/ArchitectureStudio'
 import { Dashboard } from './features/dashboard/Dashboard'
+import { ModelExplorer } from './features/model-import/ModelExplorer'
 import { PlannedSection } from './features/planned/PlannedSection'
 import { TrainingLab } from './features/training-lab/TrainingLab'
 import { useBackendHealth } from './hooks/useBackendHealth'
@@ -43,6 +44,8 @@ export default function App() {
           <ArchitectureStudio />
         ) : section.id === 'training' ? (
           <TrainingLab onOpenStudio={() => setActive('studio')} />
+        ) : section.id === 'explorer' ? (
+          <ModelExplorer />
         ) : (
           <PlannedSection section={section} />
         )}

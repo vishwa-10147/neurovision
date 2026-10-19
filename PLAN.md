@@ -128,17 +128,17 @@ a runnable, testable state.
 
 ### Tasks
 
--   [ ] Add controlled upload endpoint and size limits.
--   [ ] Validate ONNX files and return safe parse errors.
--   [ ] Extract graph nodes, operators, edges, metadata, initializers,
+-   [x] Add controlled upload endpoint and size limits.
+-   [x] Validate ONNX files and return safe parse errors.
+-   [x] Extract graph nodes, operators, edges, metadata, initializers,
     and known shapes.
--   [ ] Normalize the graph into the shared schema.
--   [ ] Preserve unknown operators with warnings.
--   [ ] Add capability report.
--   [ ] Add bounded tensor summaries and slices.
--   [ ] Add tests for malformed files, dynamic shapes, unknown
+-   [x] Normalize the graph into the shared schema.
+-   [x] Preserve unknown operators with warnings.
+-   [x] Add capability report.
+-   [x] Add bounded tensor summaries and slices.
+-   [x] Add tests for malformed files, dynamic shapes, unknown
     operators, and oversized requests.
--   [ ] Document supported and unsupported cases.
+-   [x] Document supported and unsupported cases.
 
 ### Acceptance criteria
 

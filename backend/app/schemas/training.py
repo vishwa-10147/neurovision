@@ -57,11 +57,14 @@ class TensorResponse(BaseModel):
     shape: list[int]
     dtype: str
     count: int
-    summary: TensorSummary
+    # Over finite values only; null when the tensor has none.
+    summary: TensorSummary | None
+    # NaN or infinite values: excluded from the summary, null in `values`.
+    non_finite_count: int = 0
     offset: int
     # Row-major values from `offset`; a weight is [out_units][in_units], so
     # weight[j][i] connects source unit i to target unit j.
-    values: list[float]
+    values: list[float | None]
     truncated: bool
 
 

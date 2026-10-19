@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Path, Query, Request, status
 
-from app.core.errors import not_found
+from app.core.errors import ApiError, not_found
 from app.ml.educational_network import EducationalNetwork
 from app.schemas.architecture import DenseNetworkConfig, EducationalModelCreated
 from app.schemas.errors import ErrorResponse
@@ -19,7 +19,13 @@ from app.schemas.training import (
 )
 from app.services.educational_graph import build_dense_graph
 from app.services.inference import read_tensor, run_forward
-from app.services.model_repository import ModelRecord, ModelRepository
+from app.services.model_repository import (
+    ImportedModelRecord,
+    ModelRecord,
+    ModelRepository,
+    StoredModel,
+)
+from app.services.tensors import read_onnx_tensor
 from app.services.training_jobs import TrainingJobManager
 
 router = APIRouter(prefix="/models", tags=["models"])
@@ -43,11 +49,24 @@ Repository = Annotated[ModelRepository, Depends(get_repository)]
 Jobs = Annotated[TrainingJobManager, Depends(get_jobs)]
 
 
-def _record(repository: ModelRepository, model_id: str) -> ModelRecord:
+def _stored(repository: ModelRepository, model_id: str) -> StoredModel:
     record = repository.get(model_id)
     if record is None:
         raise not_found(
             f"Model '{model_id}' was not found. It may have expired; create it again."
+        )
+    return record
+
+
+def _record(repository: ModelRepository, model_id: str) -> ModelRecord:
+    """An educational model; imported models cannot run or train."""
+    record = _stored(repository, model_id)
+    if not isinstance(record, ModelRecord):
+        raise ApiError(
+            400,
+            "capability_unavailable",
+            "This model was imported for inspection only. Running imported models is not "
+            "supported yet, and they cannot be trained.",
         )
     return record
 
@@ -71,7 +90,7 @@ def create_educational_model(
 
 @router.get("/{model_id}/graph", response_model=ModelGraph, responses=ERRORS)
 def get_model_graph(model_id: ModelId, repository: Repository) -> ModelGraph:
-    return _record(repository, model_id).graph
+    return _stored(repository, model_id).graph
 
 
 # Plain `def` endpoints run in FastAPI's thread pool, off the event loop.
@@ -92,6 +111,9 @@ def get_tensor(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=MAX_TENSOR_VALUES)] = MAX_TENSOR_VALUES,
 ) -> TensorResponse:
+    record = _stored(repository, model_id)
+    if isinstance(record, ImportedModelRecord):
+        return read_onnx_tensor(record, tensor_id, offset, limit)
     return read_tensor(_record(repository, model_id), tensor_id, offset, limit)
 
 

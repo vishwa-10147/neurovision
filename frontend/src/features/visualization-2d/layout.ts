@@ -2,10 +2,12 @@
  * 2D layout derived from the normalized graph. Layout lives here, never in the
  * graph: the same graph can be laid out differently by each renderer.
  */
-import { unitCount } from '../../lib/graph'
+import { showsUnits, unitCount } from '../../lib/graph'
 import type { ModelGraph } from '../../types/graph'
 
 export const LAYER_GAP = 190
+/** Operator graphs are long chains of narrow blocks; pack them tighter. */
+export const OPERATOR_GAP = 110
 export const UNIT_GAP = 34
 export const UNIT_RADIUS = 11
 /** Vertical size of a layer whose unit count is unknown. */
@@ -23,7 +25,11 @@ export interface UnitPosition {
 export interface LayerLayout {
   nodeId: string
   name: string
+  /** Short text drawn on the diagram: the layer name, or the operator type. */
+  label: string
   role: LayerRole
+  /** Imported operator outside the ONNX standard, shown for inspection only. */
+  unsupported: boolean
   x: number
   top: number
   bottom: number
@@ -69,6 +75,7 @@ export function columnsOf(graph: ModelGraph): Map<string, number> {
 }
 
 export function computeLayout(graph: ModelGraph): GraphLayout {
+  const units = showsUnits(graph)
   const columns = columnsOf(graph)
   const hasOutgoing = new Set(graph.edges.map((e) => e.source))
 
@@ -85,26 +92,27 @@ export function computeLayout(graph: ModelGraph): GraphLayout {
   for (const node of graph.nodes) {
     const column = columns.get(node.id) ?? 0
     const siblings = byColumn.get(column) ?? [node.id]
-    const count = unitCount(node)
+    const count = units ? unitCount(node) : null
     const height = count === null ? OPAQUE_LAYER_HEIGHT : (count - 1) * UNIT_GAP
     // Stack nodes that share a column; a dense chain has one node per column.
     const offset = (siblings.indexOf(node.id) - (siblings.length - 1) / 2) * (height + COLUMN_STACK_GAP)
-    const x = column * LAYER_GAP
-    const units =
-      count === null
-        ? null
-        : Array.from({ length: count }, (_, index) => ({
-            index,
-            y: offset + (index - (count - 1) / 2) * UNIT_GAP,
-          }))
+    const x = column * (units ? LAYER_GAP : OPERATOR_GAP)
     const layer: LayerLayout = {
       nodeId: node.id,
       name: node.name,
+      label: units ? node.name : node.op_type,
+      unsupported: node.unsupported,
       role: node.op_type === 'Input' ? 'input' : hasOutgoing.has(node.id) ? 'hidden' : 'output',
       x,
       top: offset - height / 2 - LAYER_PADDING,
       bottom: offset + height / 2 + LAYER_PADDING,
-      units,
+      units:
+        count === null
+          ? null
+          : Array.from({ length: count }, (_, index) => ({
+              index,
+              y: offset + (index - (count - 1) / 2) * UNIT_GAP,
+            })),
     }
     layers.push(layer)
     byId.set(node.id, layer)

@@ -1,3 +1,4 @@
+import { StudioModelView } from '../../app/StudioModelView'
 import { Inspector } from '../../components/inspector/Inspector'
 import { ErrorState, LoadingState } from '../../components/states/StateViews'
 import { totalParameters } from '../../lib/graph'
@@ -19,6 +20,7 @@ export function ArchitectureStudio() {
   else if (status.state === 'loading' && graph) overlay = 'Updating…'
 
   return (
+    <StudioModelView>
     <section aria-labelledby="studio-title" className="studio">
       <header className="studio-header">
         <h1 id="studio-title">Architecture Studio</h1>
@@ -51,5 +53,6 @@ export function ArchitectureStudio() {
         </div>
       </div>
     </section>
+    </StudioModelView>
   )
 }

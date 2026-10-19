@@ -3,6 +3,8 @@ uvicorn[standard]==0.54.0
 pydantic==2.14.1
 pydantic-settings==2.16.0
 numpy==2.5.4
+onnx==1.23.2
+protobuf==7.36.2
 # Install the right PyTorch build for your platform first (see README); this
 # pin is satisfied by local variants such as 2.14.1+cpu.
 torch==2.14.1

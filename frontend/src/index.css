@@ -283,6 +283,49 @@ code {
 }
 .unit.has-value { stroke: var(--bg); }
 
+/* Model Explorer */
+.upload-panel, .import-report { align-content: start; }
+.upload-panel h3, .import-report h3 { margin: 0 0 0.4rem; font-size: 0.95rem; display: flex; align-items: center; gap: 0.35rem; }
+.drop-zone {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  text-align: center;
+}
+.drop-zone p { margin: 0; }
+.drop-zone.is-dragging { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.samples ul, .plain-list, .capabilities, .warnings { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.sample-button {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.sample-button:hover:not(:disabled) { border-color: var(--accent); }
+.sample-button .muted { font-size: 0.8rem; }
+.capabilities li { display: flex; gap: 0.4rem; align-items: baseline; font-size: 0.9rem; }
+.capabilities .is-available svg { color: var(--ok); }
+.capabilities .is-unavailable svg { color: var(--muted); }
+.warnings li { font-size: 0.85rem; padding-left: 0.6rem; border-left: 3px solid var(--warn); }
+.state-padded { padding: 1.25rem; }
+.inspector-warning { display: flex; gap: 0.4rem; align-items: baseline; color: var(--warn); font-size: 0.85rem; margin: 0 0 0.6rem; }
+.initializers { display: grid; gap: 0.6rem; }
+.initializers h4 { margin: 0; font-size: 0.9rem; }
+.initializer { display: grid; gap: 0.2rem; font-size: 0.85rem; padding: 0.5rem; background: var(--surface-2); border-radius: 6px; }
+.initializer p, .tensor-values p { margin: 0; }
+.tensor-values { display: grid; gap: 0.25rem; }
+
 /* Training Lab */
 .training { display: grid; gap: 1rem; }
 .training-grid { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 1rem; align-items: start; }
@@ -417,6 +460,24 @@ code {
 .layer.is-selected .layer-box { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: var(--accent); }
 .layer-label { fill: var(--muted); font-size: 12px; pointer-events: none; }
 
+/* Operator blocks (imported graphs) */
+.layer.is-block .layer-box { stroke: var(--border); }
+.layer.is-block.layer-input .layer-box { fill: color-mix(in srgb, var(--unit-input) 35%, transparent); }
+.layer.is-block.layer-hidden .layer-box { fill: color-mix(in srgb, var(--unit-hidden) 35%, transparent); }
+.layer.is-block.layer-output .layer-box { fill: color-mix(in srgb, var(--unit-output) 35%, transparent); }
+.layer.is-block.is-unsupported .layer-box { stroke: var(--warn); stroke-dasharray: 5 3; stroke-width: 2; }
+.layer.is-block.is-selected .layer-box { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: none; }
+.layer.is-block .layer-label { fill: var(--text); }
+.edge-link { cursor: pointer; }
+.edge-link-hit { fill: none; stroke: transparent; stroke-width: 12; vector-effect: non-scaling-stroke; }
+.edge-link-line { fill: none; stroke: var(--muted); stroke-width: 1.5; vector-effect: non-scaling-stroke; pointer-events: none; }
+.edge-link:hover .edge-link-line { stroke: var(--text); }
+.edge-link.is-related .edge-link-line { stroke: var(--accent); stroke-width: 2; }
+.edge-link.is-selected .edge-link-line { stroke: var(--accent); stroke-width: 3.5; }
+.swatch-block { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+.swatch-unsupported { border: 2px dashed var(--warn); }
+.swatch-warn { background: var(--warn); }
+
 .unit { stroke: var(--bg); stroke-width: 2; cursor: pointer; }
 .layer-input .unit, .legend-input { fill: var(--unit-input); }
 .layer-hidden .unit, .legend-hidden { fill: var(--unit-hidden); }
@@ -494,6 +555,17 @@ code {
   gap: 0.35rem;
   padding: 0.5rem 0.75rem;
   border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+.layer-jump select {
+  min-width: 0;
+  flex: 1;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
   font-size: 0.85rem;
 }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }

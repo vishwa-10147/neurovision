@@ -13,6 +13,7 @@ from app.schemas.errors import ErrorResponse
 from app.schemas.events import training_event_adapter
 from app.schemas.graph import ModelGraph
 from app.schemas.health import HealthResponse
+from app.schemas.imports import ImportResponse
 from app.schemas.training import (
     ForwardRequest,
     ForwardResponse,
@@ -65,6 +66,9 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         ),
         "tensor.schema.json": _with_header(
             "tensor.schema.json", "TensorResponse", TensorResponse.model_json_schema()
+        ),
+        "import.schema.json": _with_header(
+            "import.schema.json", "ImportResponse", ImportResponse.model_json_schema()
         ),
         "error.schema.json": _with_header(
             "error.schema.json", "ErrorResponse", ErrorResponse.model_json_schema()

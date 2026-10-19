@@ -15,6 +15,7 @@ browser.
 | Training config | `app/schemas/training.py`         | `shared/schemas/training-config.schema.json` | `src/types/training.ts`        |
 | Forward pass    | `app/schemas/training.py`         | `shared/schemas/forward.schema.json`       | `src/types/training.ts`          |
 | Tensor slice    | `app/schemas/training.py`         | `shared/schemas/tensor.schema.json`        | `src/types/training.ts`          |
+| ONNX import     | `app/schemas/imports.py`          | `shared/schemas/import.schema.json`        | `src/types/imports.ts`           |
 | Error envelope  | `app/schemas/errors.py`           | `shared/schemas/error.schema.json`         | `src/api/client.ts`              |
 | Health          | `app/schemas/health.py`           | `shared/schemas/health.schema.json`        | `src/api/health.ts`              |
 

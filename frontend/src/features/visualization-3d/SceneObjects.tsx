@@ -4,7 +4,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { Selection } from '../../stores/modelStore'
 import type { ThemeColors } from './environment'
-import { LABEL_CLEARANCE, UNIT_RADIUS, type Highlight3D, type Scene3D } from './scene'
+import { LABEL_CLEARANCE, MAX_3D_LABELS, UNIT_RADIUS, type Highlight3D, type Scene3D } from './scene'
 
 type Pick = (selection: Selection, event: ThreeEvent<MouseEvent>) => void
 
@@ -198,6 +198,8 @@ export function Layers({
   colors: ThemeColors
   onPick: Pick
 }) {
+  // Hundreds of DOM labels are unreadable and slow; then label only the selection.
+  const labelAll = scene.layers.length <= MAX_3D_LABELS
   return (
     <>
       {scene.layers.map((layer) => {
@@ -213,7 +215,7 @@ export function Layers({
               <mesh onClick={(event) => onPick({ kind: 'layer', nodeId: layer.nodeId }, event)}>
                 <boxGeometry args={layer.size} />
                 <meshStandardMaterial
-                  color={roleColor(colors, layer.role)}
+                  color={layer.unsupported ? colors.warn : roleColor(colors, layer.role)}
                   transparent
                   opacity={highlight.active && !selected ? 0.35 : 0.85}
                 />
@@ -225,14 +227,16 @@ export function Layers({
                 <lineBasicMaterial color={colors.accent} />
               </lineSegments>
             )}
-            <Html
-              position={[0, layer.size[1] / 2 + LABEL_CLEARANCE, 0]}
-              center
-              className="label3d"
-              zIndexRange={[10, 0]}
-            >
-              {layer.name}
-            </Html>
+            {(labelAll || selected) && (
+              <Html
+                position={[0, layer.size[1] / 2 + LABEL_CLEARANCE, 0]}
+                center
+                className="label3d"
+                zIndexRange={[10, 0]}
+              >
+                {layer.label}
+              </Html>
+            )}
           </group>
         )
       })}

@@ -52,7 +52,19 @@
       "type": "integer"
     },
     "summary": {
-      "$ref": "#/$defs/TensorSummary"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TensorSummary"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "non_finite_count": {
+      "default": 0,
+      "title": "Non Finite Count",
+      "type": "integer"
     },
     "offset": {
       "title": "Offset",
@@ -60,7 +72,14 @@
     },
     "values": {
       "items": {
-        "type": "number"
+        "anyOf": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "null"
+          }
+        ]
       },
       "title": "Values",
       "type": "array"

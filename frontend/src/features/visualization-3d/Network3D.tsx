@@ -1,14 +1,18 @@
 import { Canvas, type ThreeEvent } from '@react-three/fiber'
 import { Minus, Plus, RotateCcw } from 'lucide-react'
 import { useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { useModelStore, type Selection } from '../../stores/modelStore'
+import { useModelView } from '../../app/modelView'
+import { showsUnits } from '../../lib/graph'
+import type { Selection } from '../../stores/modelStore'
 import type { ModelGraph } from '../../types/graph'
 import { CameraRig, type CameraCommands } from './CameraRig'
 import { usePrefersReducedMotion, useThemeColors } from './environment'
-import { highlightFor, MAX_3D_CONNECTIONS, MAX_3D_UNITS, planScene } from './scene'
+import { highlightFor, MAX_3D_CONNECTIONS, MAX_3D_LABELS, MAX_3D_UNITS, planScene } from './scene'
 import { Connections, LayerLinks, Layers, Units } from './SceneObjects'
 
 const FOV = 45
+/** Above this many layers, layer selection uses a dropdown instead of chips. */
+const MAX_LAYER_CHIPS = 12
 const DRAG_THRESHOLD_PX = 4
 const ORBIT_STEP = Math.PI / 24
 const PAN_STEP = 0.05
@@ -21,8 +25,8 @@ interface Network3DProps {
 /** Default export so the studio can lazy-load three.js only when 3D is opened. */
 export default function Network3D({ graph, overlay }: Network3DProps) {
   const scene = useMemo(() => planScene(graph), [graph])
-  const selection = useModelStore((s) => s.selection)
-  const select = useModelStore((s) => s.select)
+  const operators = !showsUnits(graph)
+  const { selection, select } = useModelView()
   const highlight = useMemo(() => highlightFor(scene, selection), [scene, selection])
   const colors = useThemeColors()
   const reducedMotion = usePrefersReducedMotion()
@@ -115,24 +119,55 @@ export default function Network3D({ graph, overlay }: Network3DProps) {
 
       {overlay && <div className="network2d-overlay">{overlay}</div>}
 
-      <div className="layer-jump" role="group" aria-label="Select a layer">
-        <span className="muted">Layers:</span>
-        {scene.layers.map((layer) => {
-          const pressed = selection?.kind === 'layer' && selection.nodeId === layer.nodeId
-          return (
-            <button
-              key={layer.nodeId}
-              type="button"
-              className="chip"
-              aria-pressed={pressed}
-              onClick={() => select({ kind: 'layer', nodeId: layer.nodeId })}
-            >
-              {layer.name}
-            </button>
-          )
-        })}
-      </div>
+      {scene.layers.length > MAX_LAYER_CHIPS ? (
+        // Many layers: a dropdown keeps the keyboard path without crowding the canvas.
+        <label className="layer-jump">
+          <span className="muted">Select:</span>
+          <select
+            value={selection?.kind === 'layer' ? selection.nodeId : ''}
+            onChange={(e) => select(e.target.value ? { kind: 'layer', nodeId: e.target.value } : null)}
+          >
+            <option value="">Choose a {operators ? 'node' : 'layer'}…</option>
+            {scene.layers.map((layer) => (
+              <option key={layer.nodeId} value={layer.nodeId}>
+                {layer.label === layer.name ? layer.name : `${layer.label} — ${layer.name}`}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <div className="layer-jump" role="group" aria-label="Select a layer">
+          <span className="muted">Layers:</span>
+          {scene.layers.map((layer) => {
+            const pressed = selection?.kind === 'layer' && selection.nodeId === layer.nodeId
+            return (
+              <button
+                key={layer.nodeId}
+                type="button"
+                className="chip"
+                aria-pressed={pressed}
+                onClick={() => select({ kind: 'layer', nodeId: layer.nodeId })}
+              >
+                {layer.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
+      {operators ? (
+        <div className="legend" aria-label="3D legend">
+          <span className="legend-item"><span className="swatch-block legend-input-bg" aria-hidden="true" />Graph input</span>
+          <span className="legend-item"><span className="swatch-block legend-hidden-bg" aria-hidden="true" />Operator</span>
+          <span className="legend-item"><span className="swatch-block legend-output-bg" aria-hidden="true" />Graph output</span>
+          <span className="legend-item"><span className="swatch-block swatch-warn" aria-hidden="true" />Unsupported operator</span>
+          <p className="legend-note">
+            Each block is one operator and each link a tensor between operators. Labels show
+            operator types{scene.layers.length > MAX_3D_LABELS ? ' (only for the selection in graphs this large)' : ''}.
+            Shown for inspection only: values are not computed.
+          </p>
+        </div>
+      ) : (
       <div className="legend" aria-label="3D legend">
         <span className="legend-item"><span className="swatch legend-input-bg" aria-hidden="true" />Input unit</span>
         <span className="legend-item"><span className="swatch legend-hidden-bg" aria-hidden="true" />Hidden unit</span>
@@ -150,6 +185,7 @@ export default function Network3D({ graph, overlay }: Network3DProps) {
           the 2D view and the inspector; select a connection to see its weight.
         </p>
       </div>
+      )}
     </div>
   )
 }

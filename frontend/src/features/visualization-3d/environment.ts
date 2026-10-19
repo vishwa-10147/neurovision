@@ -32,6 +32,7 @@ export interface ThemeColors {
   accent: string
   surface: string
   muted: string
+  warn: string
 }
 
 /** Scene colors from the CSS custom properties, updated when the theme flips. */
@@ -53,5 +54,6 @@ function readColors(_dark: boolean): ThemeColors {
     accent: get('--accent', '#7aa2ff'),
     surface: get('--surface', '#121826'),
     muted: get('--muted', '#94a0b8'),
+    warn: get('--warn', '#f2c94c'),
   }
 }

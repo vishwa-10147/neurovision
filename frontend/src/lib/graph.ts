@@ -17,6 +17,15 @@ export function unitCount(node: GraphNode): number | null {
   return typeof last === 'number' ? last : null
 }
 
+/**
+ * Whether the graph's nodes are dense layers of individual units (neurons).
+ * Imported graphs are operator graphs: a tensor's last dimension (e.g. image
+ * width) is not a count of neurons, so they are drawn as operator blocks.
+ */
+export function showsUnits(graph: ModelGraph): boolean {
+  return graph.model.source_format === 'educational'
+}
+
 export function findNode(graph: ModelGraph, id: string): GraphNode | undefined {
   return graph.nodes.find((node) => node.id === id)
 }

@@ -92,14 +92,21 @@ return `422` naming the field (e.g. `body.inputs.1`).
 
 ## `GET /models/{model_id}/tensors/{tensor_id}`
 
-Bounded access to weights, biases, and gradients. Tensor ids:
-`{layer}.weight`, `{layer}.bias`, and the same with `.grad` appended,
-e.g. `hidden_1.weight.grad`.
+Bounded access to weights, biases, and gradients. Tensor ids for
+educational models: `{layer}.weight`, `{layer}.bias`, and the same with
+`.grad` appended, e.g. `hidden_1.weight.grad`. For imported models:
+the `tensor_id` listed in each operator's
+`metadata.onnx.initializers` (`t0`, `t1`, …).
 
 -   Query: `offset` (≥ 0) and `limit` (1–4096, default 4096).
 -   Returns `shape`, `dtype`, `count`, a `summary`
-    (min/max/mean/std over the whole tensor), `values` (row-major, from
-    `offset`), and `truncated`.
+    (min/max/mean/std over the finite values, or `null` if there are
+    none), `non_finite_count`, `values` (row-major from `offset`; NaN and
+    infinities are `null` because JSON cannot represent them), and
+    `truncated`.
+-   Imported tensors stored in external files return `404` (their
+    values were not uploaded); string tensors return
+    `400 unsupported_tensor`.
 -   A weight has shape `[target units, source units]`:
     `weight[j][i]` is the connection from source unit `i` to target unit
     `j`, at flat index `j × source_units + i`.
@@ -170,3 +177,36 @@ nothing. The server closes the socket after the final event.
 -   Browser `Origin` headers must be in `NEUROVISION_CORS_ORIGINS`
     (CORS does not cover WebSockets); otherwise the connection is
     refused.
+
+## `POST /import/onnx?filename=…`
+
+Imports an ONNX model for inspection. Send the file as the raw request
+body (`Content-Type: application/octet-stream`); `filename` must end in
+`.onnx`. Returns `201` with `{model_id, graph, report}`, where `report`
+has the file name and size, operator / edge / initializer counts, the
+initializer value count, external tensor count, opsets, unsupported
+operators, and warnings (`shared/schemas/import.schema.json`).
+
+The file is parsed in memory and never executed; external data paths it
+references are never opened. Errors:
+
+-   `413 payload_too_large`: larger than `NEUROVISION_MAX_UPLOAD_BYTES`
+    (default 64 MB), checked from `Content-Length` and while streaming.
+-   `422 validation_error`: wrong extension or empty body.
+-   `422 invalid_model`: not parseable as ONNX, no graph, or more than
+    5,000 operators.
+
+The graph's capabilities are `graph: true` only. Forward, training, and
+metrics requests for imported models return `400 capability_unavailable`.
+Imported models share the in-memory repository, which also has a 512 MB
+budget and evicts the least recently used models.
+
+Supported and unsupported cases are listed in
+[importing-onnx.md](importing-onnx.md).
+
+## `GET /import/onnx/samples` and `POST /import/onnx/samples/{name}`
+
+Lists, and imports, small sample models (`mlp`, `cnn`, `residual`,
+`custom-op`) built in memory. They go through the same importer as
+uploads. Their weights are seeded random values, so they show structure
+and tensors, not trained behavior.

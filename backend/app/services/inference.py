@@ -7,14 +7,13 @@ import torch
 from app.core.errors import invalid, not_found
 from app.ml.educational_network import LayerTrace
 from app.schemas.training import (
-    MAX_TENSOR_VALUES,
     ForwardRequest,
     ForwardResponse,
     LayerValues,
     TensorResponse,
-    TensorSummary,
 )
 from app.services.model_repository import ModelRecord
+from app.services.tensors import tensor_response
 
 TENSOR_ID = re.compile(
     r"^(?P<node>[a-z0-9_]+)\.(?P<kind>weight|bias)(?P<grad>\.grad)?$"
@@ -80,28 +79,13 @@ def read_tensor(
                 )
         else:
             tensor = parameters[tensor_id]
-        values = tensor.detach().flatten().clone()
+        flat = tensor.detach().flatten().numpy().copy()
 
-    count = values.numel()
-    if offset > count:
-        raise invalid(
-            "query.offset",
-            f"Offset {offset} is past the end of the tensor ({count} values).",
-        )
-    limit = min(limit, MAX_TENSOR_VALUES)
-    window = values[offset : offset + limit]
-    return TensorResponse(
-        tensor_id=tensor_id,
-        shape=list(tensor.shape),
-        dtype=str(tensor.dtype).removeprefix("torch."),
-        count=count,
-        summary=TensorSummary(
-            min=values.min().item(),
-            max=values.max().item(),
-            mean=values.mean().item(),
-            std=values.std(unbiased=False).item(),
-        ),
-        offset=offset,
-        values=window.tolist(),
-        truncated=offset + len(window) < count,
+    return tensor_response(
+        tensor_id,
+        list(tensor.shape),
+        str(tensor.dtype).removeprefix("torch."),
+        flat,
+        offset,
+        limit,
     )

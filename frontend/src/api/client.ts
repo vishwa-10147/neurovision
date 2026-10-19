@@ -56,21 +56,24 @@ const START_BACKEND_HINT =
 interface RequestOptions {
   method?: 'GET' | 'POST'
   body?: unknown
+  /** Sent as-is (e.g. an uploaded file) instead of JSON. */
+  rawBody?: Blob
   signal?: AbortSignal
+  timeoutMs?: number
 }
 
 /** Call an /api/v1 endpoint and validate the JSON response against `schema`. */
 export async function request<T>(
   path: string,
   schema: z.ZodType<T>,
-  { method = 'GET', body, signal }: RequestOptions = {},
+  { method = 'GET', body, rawBody, signal, timeoutMs = REQUEST_TIMEOUT_MS }: RequestOptions = {},
 ): Promise<T> {
   const controller = new AbortController()
   let timedOut = false
   const timer = setTimeout(() => {
     timedOut = true
     controller.abort()
-  }, REQUEST_TIMEOUT_MS)
+  }, timeoutMs)
   const onAbort = () => controller.abort()
   signal?.addEventListener('abort', onAbort)
 
@@ -79,13 +82,17 @@ export async function request<T>(
     response = await fetch(`${API_BASE_URL}/api/v1${path}`, {
       method,
       signal: controller.signal,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: rawBody
+        ? { 'Content-Type': 'application/octet-stream' }
+        : body === undefined
+          ? undefined
+          : { 'Content-Type': 'application/json' },
+      body: rawBody ?? (body === undefined ? undefined : JSON.stringify(body)),
     })
   } catch (error) {
     if (signal?.aborted) throw error
     if (timedOut) {
-      throw new ApiError(`Backend at ${API_BASE_URL} did not respond within 5 seconds.`, {
+      throw new ApiError(`Backend at ${API_BASE_URL} did not respond within ${Math.round(timeoutMs / 1000)} seconds.`, {
         kind: 'timeout',
         hint: 'The backend may be busy or stuck. Check its terminal output, then retry.',
       })

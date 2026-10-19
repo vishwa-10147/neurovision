@@ -32,6 +32,16 @@ describe('computeLayout', () => {
     expect(JSON.stringify(graph)).toBe(before)
   })
 
+  it('draws imported operators as blocks labeled by type, even with numeric shapes', () => {
+    // Same nodes, but marked as an imported operator graph: [batch, 8] is a
+    // tensor shape there, not a count of neurons.
+    const imported = { ...graph, model: { ...graph.model, source_format: 'onnx' as const } }
+    const layout = computeLayout(imported)
+    expect(layout.layers.every((l) => l.units === null)).toBe(true)
+    expect(layout.layers.map((l) => l.label)).toEqual(['Input', 'Linear', 'Linear', 'Linear'])
+    expect(layout.connectionCount).toBe(0)
+  })
+
   it('draws layers with unknown sizes as blocks instead of inventing units', () => {
     const layout = computeLayout(ModelGraphSchema.parse(onnxGraph))
     expect(layout.byId.get('conv_0')?.units).toBeNull()

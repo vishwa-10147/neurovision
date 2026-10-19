@@ -9,6 +9,9 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+# `ruff format` enforces line length for code; long user-facing message
+# strings are clearer unsplit (ruff recommends this pairing).
+ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

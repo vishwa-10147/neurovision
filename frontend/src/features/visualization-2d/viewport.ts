@@ -6,7 +6,8 @@ export interface ViewTransform {
   k: number
 }
 
-export const MIN_ZOOM = 0.2
+// Low enough that fit-to-view can show long imported graphs whole.
+export const MIN_ZOOM = 0.05
 export const MAX_ZOOM = 4
 const FIT_PADDING = 40
 

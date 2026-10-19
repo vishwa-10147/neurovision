@@ -1,7 +1,9 @@
 import { Maximize, Minus, Plus, RotateCcw } from 'lucide-react'
 import { useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react'
+import { showsUnits } from '../../lib/graph'
 import { activationFill } from '../../lib/values'
-import { useModelStore, type Selection } from '../../stores/modelStore'
+import { useModelView } from '../../app/modelView'
+import type { Selection } from '../../stores/modelStore'
 import type { GraphEdge, ModelGraph } from '../../types/graph'
 import { computeLayout, UNIT_RADIUS, type GraphLayout, type LayerLayout } from './layout'
 import { usePanZoom } from './usePanZoom'
@@ -19,8 +21,7 @@ interface Network2DProps {
 
 export function Network2D({ graph, overlay, activations }: Network2DProps) {
   const layout = useMemo(() => computeLayout(graph), [graph])
-  const selection = useModelStore((s) => s.selection)
-  const select = useModelStore((s) => s.select)
+  const { selection, select } = useModelView()
   const svgRef = useRef<SVGSVGElement>(null)
   const { transform, zoomIn, zoomOut, fit, reset, wasDragged, svgHandlers } = usePanZoom(
     svgRef,
@@ -92,7 +93,11 @@ export function Network2D({ graph, overlay, activations }: Network2DProps) {
 
       {overlay && <div className="network2d-overlay">{overlay}</div>}
 
-      <Legend aggregated={aggregated} connectionCount={layout.connectionCount} showsActivations={Boolean(activations)} />
+      {showsUnits(graph) ? (
+        <Legend aggregated={aggregated} connectionCount={layout.connectionCount} showsActivations={Boolean(activations)} />
+      ) : (
+        <OperatorLegend graph={graph} />
+      )}
     </div>
   )
 }
@@ -115,7 +120,11 @@ function Layer({
   const maxAbs = values ? Math.max(0, ...values.map(Math.abs)) : 0
   const layerSelected = selection?.kind === 'layer' && selection.nodeId === layer.nodeId
   const selectedUnit = selection?.kind === 'unit' && selection.nodeId === layer.nodeId ? selection.index : null
-  const unitsLabel = layer.units ? `${layer.units.length} units` : 'unit count unknown'
+  const unitsLabel = layer.units
+    ? `${layer.units.length} units`
+    : layer.label !== layer.name
+      ? `${layer.label} operator${layer.unsupported ? ', unsupported' : ''}`
+      : 'unit count unknown'
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -127,7 +136,7 @@ function Layer({
 
   return (
     <g
-      className={`layer layer-${layer.role}${layerSelected ? ' is-selected' : ''}`}
+      className={`layer layer-${layer.role}${layerSelected ? ' is-selected' : ''}${layer.units ? '' : ' is-block'}${layer.unsupported ? ' is-unsupported' : ''}`}
       data-node-id={layer.nodeId}
       role="button"
       tabIndex={0}
@@ -145,7 +154,7 @@ function Layer({
         onClick={chooseIf({ kind: 'layer', nodeId: layer.nodeId })}
       />
       <text className="layer-label" x={layer.x} y={layer.top - 10} textAnchor="middle">
-        {layer.name}
+        {layer.label}
       </text>
       {layer.units?.map((unit) => {
         const value = values?.[unit.index]
@@ -187,7 +196,7 @@ function EdgeLines({
   const target = layout.byId.get(edge.target)
   if (!source?.units || !target?.units) {
     const whole: Selection = { kind: 'connection', edgeId: edge.id, sourceIndex: null, targetIndex: null }
-    return <EdgeBand edge={edge} layout={layout} selection={selection} onClick={chooseIf(whole)} />
+    return <EdgeLink edge={edge} layout={layout} selection={selection} onClick={chooseIf(whole)} />
   }
 
   const focus = connectionFocus(edge, selection)
@@ -234,6 +243,42 @@ function connectionFocus(edge: GraphEdge, selection: Selection) {
   return Object.assign(test, { any })
 }
 
+/** One curved link between two blocks (operators or layers without units). */
+function EdgeLink({
+  edge,
+  layout,
+  selection,
+  onClick,
+}: {
+  edge: GraphEdge
+  layout: GraphLayout
+  selection: Selection
+  onClick: (event: MouseEvent) => void
+}) {
+  const source = layout.byId.get(edge.source)
+  const target = layout.byId.get(edge.target)
+  if (!source || !target) return null
+  const half = UNIT_RADIUS + 12
+  const x1 = source.x + half
+  const y1 = (source.top + source.bottom) / 2
+  const x2 = target.x - half
+  const y2 = (target.top + target.bottom) / 2
+  const bend = Math.max(40, (x2 - x1) / 2)
+  const d = `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`
+  const selected = selection?.kind === 'connection' && selection.edgeId === edge.id
+  const related =
+    (selection?.kind === 'layer' || selection?.kind === 'unit') &&
+    (selection.nodeId === edge.target || selection.nodeId === edge.source)
+  return (
+    <g className={`edge-link${selected ? ' is-selected' : related ? ' is-related' : ''}`} data-edge-id={edge.id} onClick={onClick}>
+      {/* A wide invisible stroke makes thin links easy to click. */}
+      <path className="edge-link-hit" d={d} />
+      <path className="edge-link-line" d={d} />
+      <title>{edge.tensor_name ?? edge.id}</title>
+    </g>
+  )
+}
+
 function EdgeBand({
   edge,
   layout,
@@ -268,6 +313,36 @@ function EdgeBand({
       points={points}
       onClick={onClick}
     />
+  )
+}
+
+function OperatorLegend({ graph }: { graph: ModelGraph }) {
+  const unsupported = graph.nodes.filter((n) => n.unsupported).length
+  return (
+    <div className="legend" aria-label="Diagram legend">
+      <span className="legend-item">
+        <span className="swatch-block legend-input-bg" aria-hidden="true" />
+        Graph input
+      </span>
+      <span className="legend-item">
+        <span className="swatch-block legend-hidden-bg" aria-hidden="true" />
+        Operator
+      </span>
+      <span className="legend-item">
+        <span className="swatch-block legend-output-bg" aria-hidden="true" />
+        Graph output
+      </span>
+      {unsupported > 0 && (
+        <span className="legend-item">
+          <span className="swatch-block swatch-unsupported" aria-hidden="true" />
+          Unsupported operator ({unsupported})
+        </span>
+      )}
+      <p className="legend-note">
+        Each block is one operator, labeled with its type; each link is a tensor passed between
+        operators. This model is shown for inspection only: values are not computed.
+      </p>
+    </div>
   )
 }
 
