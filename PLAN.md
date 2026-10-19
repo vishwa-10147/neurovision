@@ -103,16 +103,16 @@ a runnable, testable state.
 
 ### Tasks
 
--   [ ] Implement configurable PyTorch feedforward network.
--   [ ] Add deterministic synthetic classification dataset.
--   [ ] Implement input validation and forward-pass endpoint.
--   [ ] Capture actual activations for selected layers.
--   [ ] Add training loop with validation metrics.
--   [ ] Capture selected weights and gradients.
--   [ ] Add loss and accuracy charts.
--   [ ] Add WebSocket event schema and streaming.
--   [ ] Add cancellation and cleanup.
--   [ ] Add numerical and API tests.
+-   [x] Implement configurable PyTorch feedforward network.
+-   [x] Add deterministic synthetic classification dataset.
+-   [x] Implement input validation and forward-pass endpoint.
+-   [x] Capture actual activations for selected layers.
+-   [x] Add training loop with validation metrics.
+-   [x] Capture selected weights and gradients.
+-   [x] Add loss and accuracy charts.
+-   [x] Add WebSocket event schema and streaming.
+-   [x] Add cancellation and cleanup.
+-   [x] Add numerical and API tests.
 
 ### Acceptance criteria
 

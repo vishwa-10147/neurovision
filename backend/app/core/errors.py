@@ -20,8 +20,40 @@ _CODES = {
     405: "method_not_allowed",
     409: "conflict",
     413: "payload_too_large",
+    429: "too_many_requests",
     422: "validation_error",
 }
+
+
+class ApiError(Exception):
+    """An expected failure that services raise to return the error envelope."""
+
+    def __init__(
+        self,
+        status_code: int,
+        code: str,
+        message: str,
+        details: list[ErrorDetail] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.message = message
+        self.details = details or []
+
+
+def not_found(message: str) -> ApiError:
+    return ApiError(404, "not_found", message)
+
+
+def invalid(field: str, message: str) -> ApiError:
+    """A 422 for a rule Pydantic cannot check alone (e.g. depends on the model)."""
+    return ApiError(
+        422,
+        "validation_error",
+        "The request did not pass validation.",
+        [ErrorDetail(field=field, message=message)],
+    )
 
 
 def error_response(
@@ -60,6 +92,11 @@ async def _validation_exception(request: Request, exc: Exception) -> JSONRespons
     )
 
 
+async def _api_error(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, ApiError)
+    return error_response(exc.status_code, exc.code, exc.message, exc.details)
+
+
 async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return error_response(500, "internal_error", "An unexpected server error occurred.")
@@ -68,4 +105,5 @@ async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse
 def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(StarletteHTTPException, _http_exception)
     app.add_exception_handler(RequestValidationError, _validation_exception)
+    app.add_exception_handler(ApiError, _api_error)
     app.add_exception_handler(Exception, _unhandled_exception)

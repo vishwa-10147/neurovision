@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://neurovision.local/schemas/tensor.schema.json",
+  "$defs": {
+    "TensorSummary": {
+      "properties": {
+        "min": {
+          "title": "Min",
+          "type": "number"
+        },
+        "max": {
+          "title": "Max",
+          "type": "number"
+        },
+        "mean": {
+          "title": "Mean",
+          "type": "number"
+        },
+        "std": {
+          "title": "Std",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min",
+        "max",
+        "mean",
+        "std"
+      ],
+      "title": "TensorSummary",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "tensor_id": {
+      "title": "Tensor Id",
+      "type": "string"
+    },
+    "shape": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Shape",
+      "type": "array"
+    },
+    "dtype": {
+      "title": "Dtype",
+      "type": "string"
+    },
+    "count": {
+      "title": "Count",
+      "type": "integer"
+    },
+    "summary": {
+      "$ref": "#/$defs/TensorSummary"
+    },
+    "offset": {
+      "title": "Offset",
+      "type": "integer"
+    },
+    "values": {
+      "items": {
+        "type": "number"
+      },
+      "title": "Values",
+      "type": "array"
+    },
+    "truncated": {
+      "title": "Truncated",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "tensor_id",
+    "shape",
+    "dtype",
+    "count",
+    "summary",
+    "offset",
+    "values",
+    "truncated"
+  ],
+  "title": "TensorResponse",
+  "type": "object"
+}

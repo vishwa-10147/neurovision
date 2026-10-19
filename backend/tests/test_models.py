@@ -5,11 +5,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.ml.educational_network import EducationalNetwork
 from app.schemas.architecture import DenseNetworkConfig
 from app.schemas.export import SHARED_SCHEMAS_DIR
 from app.schemas.graph import ModelGraph
 from app.services.educational_graph import build_dense_graph
-from app.services.model_repository import InMemoryModelRepository
+from app.services.model_repository import InMemoryModelRepository, ModelRecord
 
 EXAMPLE_CONFIG: dict[str, Any] = json.loads(
     (SHARED_SCHEMAS_DIR / "examples" / "dense-network.config.json").read_text(
@@ -55,11 +56,13 @@ def test_graph_without_hidden_layers() -> None:
     assert graph.model.metadata["educational"]["parameter_count"] == 2 * 2 + 2
 
 
-def test_capabilities_are_graph_only_until_pytorch_lands() -> None:
+def test_capabilities_match_the_pytorch_backing() -> None:
     graph = build_dense_graph(DenseNetworkConfig.model_validate(EXAMPLE_CONFIG), "m")
     caps = graph.model.capabilities
-    assert caps.graph is True
-    assert not any([caps.inference, caps.training, caps.activations, caps.gradients])
+    assert all([caps.graph, caps.inference, caps.training, caps.activations])
+    assert caps.gradients is True
+    # Dense networks have no attention.
+    assert caps.attention is False
 
 
 def test_create_then_fetch_graph(client: TestClient) -> None:
@@ -100,12 +103,23 @@ def test_model_id_path_is_restricted(client: TestClient) -> None:
 
 
 def test_repository_evicts_least_recently_used() -> None:
-    repository = InMemoryModelRepository(capacity=2)
+    evicted: list[str] = []
+    repository = InMemoryModelRepository(
+        capacity=2, on_evict=lambda r: evicted.append(r.model_id)
+    )
     config = DenseNetworkConfig.model_validate(EXAMPLE_CONFIG)
+
+    def record(model_id: str) -> ModelRecord:
+        graph = build_dense_graph(config, model_id)
+        return ModelRecord(
+            graph=graph, config=config, network=EducationalNetwork(config)
+        )
+
     for model_id in ("a", "b"):
-        repository.add(build_dense_graph(config, model_id))
-    assert repository.get_graph("a") is not None  # "a" becomes most recent
-    repository.add(build_dense_graph(config, "c"))
-    assert repository.get_graph("b") is None
-    assert repository.get_graph("a") is not None
+        repository.add(record(model_id))
+    assert repository.get("a") is not None  # "a" becomes most recent
+    repository.add(record("c"))
+    assert repository.get("b") is None
+    assert repository.get("a") is not None
     assert len(repository) == 2
+    assert evicted == ["b"]

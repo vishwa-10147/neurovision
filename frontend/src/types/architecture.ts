@@ -47,6 +47,13 @@ export const DenseNetworkConfigSchema = z.strictObject({
     .max(LIMITS.hiddenLayers, { error: `Use at most ${LIMITS.hiddenLayers} hidden layers.` }),
   output_units: units(LIMITS.outputUnits, 'The output layer'),
   output_activation: ActivationSchema.nullable().default(null),
+  /** Seeds weight initialization: the same config always gives the same network. */
+  seed: z
+    .number({ error: 'Enter a whole number.' })
+    .int({ error: 'Enter a whole number.' })
+    .min(0, { error: 'The seed cannot be negative.' })
+    .max(2 ** 31 - 1, { error: 'The seed is too large.' })
+    .default(0),
 })
 
 export type Activation = (typeof ACTIVATIONS)[number]

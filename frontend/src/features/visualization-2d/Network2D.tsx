@@ -1,5 +1,6 @@
 import { Maximize, Minus, Plus, RotateCcw } from 'lucide-react'
 import { useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react'
+import { activationFill } from '../../lib/values'
 import { useModelStore, type Selection } from '../../stores/modelStore'
 import type { GraphEdge, ModelGraph } from '../../types/graph'
 import { computeLayout, UNIT_RADIUS, type GraphLayout, type LayerLayout } from './layout'
@@ -12,9 +13,11 @@ interface Network2DProps {
   graph: ModelGraph
   /** Shown over the diagram, e.g. while a newer graph is loading. */
   overlay?: string | null
+  /** Measured post-activation values per layer from a forward pass, if any. */
+  activations?: Record<string, number[]> | null
 }
 
-export function Network2D({ graph, overlay }: Network2DProps) {
+export function Network2D({ graph, overlay, activations }: Network2DProps) {
   const layout = useMemo(() => computeLayout(graph), [graph])
   const selection = useModelStore((s) => s.selection)
   const select = useModelStore((s) => s.select)
@@ -75,14 +78,21 @@ export function Network2D({ graph, overlay }: Network2DProps) {
             ),
           )}
           {layout.layers.map((layer) => (
-            <Layer key={layer.nodeId} layer={layer} selection={selection} chooseIf={chooseIf} onSelectLayer={select} />
+            <Layer
+              key={layer.nodeId}
+              layer={layer}
+              selection={selection}
+              chooseIf={chooseIf}
+              onSelectLayer={select}
+              values={activations?.[layer.nodeId] ?? null}
+            />
           ))}
         </g>
       </svg>
 
       {overlay && <div className="network2d-overlay">{overlay}</div>}
 
-      <Legend aggregated={aggregated} connectionCount={layout.connectionCount} />
+      <Legend aggregated={aggregated} connectionCount={layout.connectionCount} showsActivations={Boolean(activations)} />
     </div>
   )
 }
@@ -94,12 +104,15 @@ function Layer({
   selection,
   chooseIf,
   onSelectLayer,
+  values,
 }: {
   layer: LayerLayout
   selection: Selection
   chooseIf: ChooseIf
   onSelectLayer: (s: Selection) => void
+  values: number[] | null
 }) {
+  const maxAbs = values ? Math.max(0, ...values.map(Math.abs)) : 0
   const layerSelected = selection?.kind === 'layer' && selection.nodeId === layer.nodeId
   const selectedUnit = selection?.kind === 'unit' && selection.nodeId === layer.nodeId ? selection.index : null
   const unitsLabel = layer.units ? `${layer.units.length} units` : 'unit count unknown'
@@ -134,19 +147,27 @@ function Layer({
       <text className="layer-label" x={layer.x} y={layer.top - 10} textAnchor="middle">
         {layer.name}
       </text>
-      {layer.units?.map((unit) => (
-        <circle
-          key={unit.index}
-          className={`unit${selectedUnit === unit.index ? ' is-selected' : ''}`}
-          data-unit={`${layer.nodeId}#${unit.index}`}
-          cx={layer.x}
-          cy={unit.y}
-          r={UNIT_RADIUS}
-          onClick={chooseIf({ kind: 'unit', nodeId: layer.nodeId, index: unit.index })}
-        >
-          <title>{`${layer.name}, unit ${unit.index + 1}`}</title>
-        </circle>
-      ))}
+      {layer.units?.map((unit) => {
+        const value = values?.[unit.index]
+        const measured = value !== undefined
+        return (
+          <circle
+            key={unit.index}
+            className={`unit${selectedUnit === unit.index ? ' is-selected' : ''}${measured ? ' has-value' : ''}`}
+            data-unit={`${layer.nodeId}#${unit.index}`}
+            data-value={measured ? value : undefined}
+            style={measured ? { fill: activationFill(value, maxAbs) } : undefined}
+            cx={layer.x}
+            cy={unit.y}
+            r={UNIT_RADIUS}
+            onClick={chooseIf({ kind: 'unit', nodeId: layer.nodeId, index: unit.index })}
+          >
+            <title>
+              {`${layer.name}, unit ${unit.index + 1}${measured ? `: ${value.toFixed(3)}` : ''}`}
+            </title>
+          </circle>
+        )
+      })}
     </g>
   )
 }
@@ -250,21 +271,39 @@ function EdgeBand({
   )
 }
 
-function Legend({ aggregated, connectionCount }: { aggregated: boolean; connectionCount: number }) {
+function Legend({
+  aggregated,
+  connectionCount,
+  showsActivations,
+}: {
+  aggregated: boolean
+  connectionCount: number
+  showsActivations: boolean
+}) {
   return (
     <div className="legend" aria-label="Diagram legend">
-      <span className="legend-item">
-        <svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" className="unit legend-input" /></svg>
-        Input unit
-      </span>
-      <span className="legend-item">
-        <svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" className="unit legend-hidden" /></svg>
-        Hidden unit
-      </span>
-      <span className="legend-item">
-        <svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" className="unit legend-output" /></svg>
-        Output unit
-      </span>
+      {showsActivations ? (
+        <span className="legend-item">
+          <span className="activation-scale" aria-hidden="true" />
+          Unit color: value from the last forward pass, scaled within each layer (orange negative, blue
+          positive)
+        </span>
+      ) : (
+        <>
+          <span className="legend-item">
+            <svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" className="unit legend-input" /></svg>
+            Input unit
+          </span>
+          <span className="legend-item">
+            <svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" className="unit legend-hidden" /></svg>
+            Hidden unit
+          </span>
+          <span className="legend-item">
+            <svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" className="unit legend-output" /></svg>
+            Output unit
+          </span>
+        </>
+      )}
       <span className="legend-item">
         <svg width="18" height="12" aria-hidden="true"><line x1="0" y1="6" x2="18" y2="6" className="connection is-related" /></svg>
         Connections of the selection
@@ -273,8 +312,8 @@ function Legend({ aggregated, connectionCount }: { aggregated: boolean; connecti
         {aggregated
           ? `${connectionCount.toLocaleString()} connections are too many to draw one by one, so each layer pair is shown as a single band (limit ${MAX_INDIVIDUAL_CONNECTIONS.toLocaleString()}).`
           : `Lines show which units connect (${connectionCount.toLocaleString()} total).`}{' '}
-        Line color and thickness do not encode weights: weight values become available when
-        PyTorch models are added (Milestone 4).
+        Line color and thickness do not encode weights; select a connection to see its weight in the
+        inspector.
       </p>
     </div>
   )

@@ -64,8 +64,8 @@ describe('App shell', () => {
   it('marks unbuilt sections as planned', async () => {
     mockFetch(async () => Response.json({}))
     render(<App />)
-    await userEvent.click(screen.getByRole('button', { name: /Training Lab/ }))
-    expect(screen.getByRole('heading', { name: 'Training Lab' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Model Explorer/ }))
+    expect(screen.getByRole('heading', { name: 'Model Explorer' })).toBeInTheDocument()
     expect(screen.getByText(/Not built yet/)).toBeInTheDocument()
   })
 })

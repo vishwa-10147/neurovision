@@ -146,8 +146,8 @@ export default function Network3D({ graph, overlay }: Network3DProps) {
               : scene.detail.aggregatedConnections
                 ? 'Some layer sizes are unknown, so edges are drawn as layer links. '
                 : `Lines show which units connect (${scene.detail.connectionCount.toLocaleString()} total). `}
-          Color and thickness do not encode weights: weight values become available when PyTorch
-          models are added (Milestone 4).
+          Colors show layer roles only, not weights or activations. Forward-pass values appear in
+          the 2D view and the inspector; select a connection to see its weight.
         </p>
       </div>
     </div>

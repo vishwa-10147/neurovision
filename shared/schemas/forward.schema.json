@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://neurovision.local/schemas/forward.schema.json",
+  "$defs": {
+    "ForwardRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "items": {
+            "items": {
+              "maximum": 1000000.0,
+              "minimum": -1000000.0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Inputs",
+          "type": "array"
+        },
+        "capture": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 16,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capture"
+        }
+      },
+      "required": [
+        "inputs"
+      ],
+      "title": "ForwardRequest",
+      "type": "object"
+    },
+    "ForwardResponse": {
+      "$defs": {
+        "LayerValues": {
+          "properties": {
+            "pre": {
+              "anyOf": [
+                {
+                  "items": {
+                    "items": {
+                      "type": "number"
+                    },
+                    "type": "array"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pre"
+            },
+            "post": {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "title": "Post",
+              "type": "array"
+            }
+          },
+          "required": [
+            "pre",
+            "post"
+          ],
+          "title": "LayerValues",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "outputs": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Outputs",
+          "type": "array"
+        },
+        "logits": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Logits",
+          "type": "array"
+        },
+        "predictions": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Predictions",
+          "type": "array"
+        },
+        "activations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/LayerValues"
+          },
+          "title": "Activations",
+          "type": "object"
+        }
+      },
+      "required": [
+        "model_id",
+        "outputs",
+        "logits",
+        "predictions",
+        "activations"
+      ],
+      "title": "ForwardResponse",
+      "type": "object"
+    }
+  },
+  "title": "Forward"
+}

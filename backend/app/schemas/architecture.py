@@ -13,6 +13,7 @@ MAX_INPUT_UNITS = 16
 MAX_HIDDEN_UNITS = 32
 MAX_OUTPUT_UNITS = 10
 MAX_HIDDEN_LAYERS = 6
+MAX_SEED = 2**31 - 1
 
 Activation = Literal["relu", "sigmoid", "tanh"]
 
@@ -35,6 +36,8 @@ class DenseNetworkConfig(BaseModel):
     output_units: Annotated[int, Field(ge=1, le=MAX_OUTPUT_UNITS)]
     # None means the output layer emits raw values (logits).
     output_activation: Activation | None = None
+    # Seeds weight initialization so the same config gives the same network.
+    seed: Annotated[int, Field(ge=0, le=MAX_SEED)] = 0
 
 
 class EducationalModelCreated(BaseModel):

@@ -5,16 +5,22 @@ for exploring network architecture, observing signal propagation,
 learning how training changes model parameters, and inspecting supported
 real trained models.
 
-> Status: Early development. Implemented so far: a dashboard with a
-> backend health check; the **Architecture Studio**, where you build a
-> dense network (validated limits, ReLU/sigmoid/tanh) whose graph is
-> built by the backend and shown in switchable 2D and 3D views (pan,
-> zoom, fit or orbit, detail limits) with a synchronized selection and
-> inspector; shared graph, event, and error contracts. No PyTorch model
-> exists yet, so there are no forward passes, training, activations, or
-> weights. The Training Lab, Model Explorer, and Learning Mode are shown
-> in the UI as "planned". The 3D view needs WebGL. Features described as planned are not
-> considered implemented until their code and tests exist.
+> Status: Early development. Implemented so far:
+>
+> -   **Architecture Studio**: build a dense network (validated limits,
+>     ReLU/sigmoid/tanh), backed by a seeded PyTorch model and shown in
+>     switchable 2D and 3D views with a synchronized inspector. Run a
+>     forward pass to shade units by the values the model computes; the
+>     inspector shows real activations, weights, biases, and gradients.
+> -   **Training Lab**: train on deterministic moons, circles, or spiral
+>     data in a background job, with live loss and accuracy charts and
+>     streamed activations over a WebSocket, plus cancellation.
+> -   A dashboard with a backend health check, and shared graph, event,
+>     and error contracts.
+>
+> The Model Explorer (ONNX) and Learning Mode are shown in the UI as
+> "planned". The 3D view needs WebGL. Features described as planned are
+> not considered implemented until their code and tests exist.
 
 ## Vision
 
@@ -101,25 +107,32 @@ git --version
 
 ## Setup on Windows PowerShell
 
-The commands below were verified on Windows 11 with Node.js 24 and
-Python 3.12.10. Only the dependencies the implemented features need are
-installed; PyTorch, ONNX, Three.js, React Flow, Zustand, and Recharts
-are added in the milestones that use them.
+The commands below were verified on Windows 11 with Node.js 24,
+Python 3.12.10, and the CPU build of PyTorch 2.14.1. Only the
+dependencies the implemented features need are installed; ONNX and
+React Flow are added in the milestones that use them.
 
 ### 1. Backend
 
-From the repository root:
+From the repository root, install PyTorch first for your platform, then
+the pinned requirements:
 
 ``` powershell
 cd backend
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
+pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1
 pip install -r requirements-dev.txt
 ```
 
-`requirements.txt` holds pinned runtime dependencies;
-`requirements-dev.txt` adds the test and lint tools.
+The CPU build is enough for the educational networks (each training run
+takes seconds). For a GPU build, pick the matching command at
+https://pytorch.org/get-started/locally/ instead; do not assume a
+locally installed CUDA toolkit determines the right package.
+`requirements.txt` pins `torch==2.14.1`, which local builds such as
+`2.14.1+cpu` satisfy. `requirements-dev.txt` adds the test and lint
+tools.
 
 ### 2. Frontend
 
@@ -196,13 +209,6 @@ npm test            # Vitest + Testing Library
 npm run build
 ```
 
-### PyTorch (from Milestone 4)
-
-Install PyTorch using the official selector at
-https://pytorch.org/get-started/locally/ and choose the appropriate
-platform and compute option. Do not assume that a locally installed CUDA
-toolkit automatically determines the correct PyTorch package.
-
 ## PyTorch verification
 
 After installing PyTorch, run:
@@ -222,12 +228,20 @@ compatible.
 | `GET /api/v1/health`                    | Service health                                  |
 | `POST /api/v1/models/educational`       | Validate a dense-network config, build its graph |
 | `GET /api/v1/models/{model_id}/graph`   | Fetch a created model's normalized graph        |
+| `POST /api/v1/models/{model_id}/forward` | Forward pass with every layer's real values    |
+| `GET /api/v1/models/{model_id}/tensors/{tensor_id}` | Bounded weights, biases, gradients  |
+| `POST /api/v1/models/{model_id}/training` | Start a background training job               |
+| `GET /api/v1/models/{model_id}/metrics` | Latest job and per-epoch metrics                |
+| `GET /api/v1/training/{job_id}`         | Job status                                      |
+| `POST /api/v1/training/{job_id}/cancel` | Cancel a job                                    |
+| `WS /api/v1/training/{job_id}/events`   | Replayed and live training events               |
 
 Request and response details, limits, and the in-memory storage
-limitation are in [`docs/api.md`](docs/api.md). Rendering decisions and
-large-graph limits are in
-[`docs/decisions/0001-2d-renderer.md`](docs/decisions/0001-2d-renderer.md)
-and [`docs/decisions/0002-3d-renderer.md`](docs/decisions/0002-3d-renderer.md).
+limitation are in [`docs/api.md`](docs/api.md). Design decisions are in
+[`docs/decisions/`](docs/decisions/): the
+[2D renderer](docs/decisions/0001-2d-renderer.md), the
+[3D renderer](docs/decisions/0002-3d-renderer.md), and
+[training jobs and event streaming](docs/decisions/0003-training-jobs.md).
 
 Errors from any endpoint use a shared envelope,
 `{"error": {"code", "message", "details"}}`. The model graph, training

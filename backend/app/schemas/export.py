@@ -13,6 +13,12 @@ from app.schemas.errors import ErrorResponse
 from app.schemas.events import training_event_adapter
 from app.schemas.graph import ModelGraph
 from app.schemas.health import HealthResponse
+from app.schemas.training import (
+    ForwardRequest,
+    ForwardResponse,
+    TensorResponse,
+    TrainingConfig,
+)
 
 SHARED_SCHEMAS_DIR = Path(__file__).resolve().parents[3] / "shared" / "schemas"
 _ID_BASE = "https://neurovision.local/schemas"
@@ -41,6 +47,24 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             "dense-network-config.schema.json",
             "DenseNetworkConfig",
             DenseNetworkConfig.model_json_schema(),
+        ),
+        "training-config.schema.json": _with_header(
+            "training-config.schema.json",
+            "TrainingConfig",
+            TrainingConfig.model_json_schema(),
+        ),
+        "forward.schema.json": _with_header(
+            "forward.schema.json",
+            "Forward",
+            {
+                "$defs": {
+                    "ForwardRequest": ForwardRequest.model_json_schema(),
+                    "ForwardResponse": ForwardResponse.model_json_schema(),
+                },
+            },
+        ),
+        "tensor.schema.json": _with_header(
+            "tensor.schema.json", "TensorResponse", TensorResponse.model_json_schema()
         ),
         "error.schema.json": _with_header(
             "error.schema.json", "ErrorResponse", ErrorResponse.model_json_schema()

@@ -73,6 +73,13 @@
       ],
       "default": null,
       "title": "Output Activation"
+    },
+    "seed": {
+      "default": 0,
+      "maximum": 2147483647,
+      "minimum": 0,
+      "title": "Seed",
+      "type": "integer"
     }
   },
   "required": [

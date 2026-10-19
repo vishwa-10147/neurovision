@@ -14,6 +14,11 @@
   --unit-hidden: #9b8cf2;
   --unit-output: #f0a35e;
   --connection: #3a4766;
+  --act-pos: #4f9dff;
+  --act-neg: #ff8a4c;
+  --act-zero: #2a3247;
+  --chart-train: #7aa2ff;
+  --chart-val: #f0a35e;
   font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
 }
@@ -35,6 +40,11 @@
     --unit-hidden: #6a55d8;
     --unit-output: #c96f1e;
     --connection: #c3cad8;
+    --act-pos: #1f6fe0;
+    --act-neg: #d9581a;
+    --act-zero: #e4e8f0;
+    --chart-train: #3461d9;
+    --chart-val: #c96f1e;
   }
 }
 
@@ -237,7 +247,80 @@ code {
 .studio-canvas { padding: 0; overflow: hidden; height: max(520px, calc(100vh - 120px)); }
 .studio-canvas > .state { padding: 1.25rem; }
 
-.editor, .inspector {
+.studio-side { display: grid; gap: 1rem; align-content: start; }
+
+.mono { font-family: ui-monospace, 'Cascadia Code', Consolas, monospace; font-size: 0.85em; word-break: break-word; }
+
+.button-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.button-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+.button-danger { border-color: var(--bad); color: var(--bad); }
+
+.forward-panel { display: grid; gap: 0.6rem; }
+.forward-panel p { margin: 0; }
+.forward-inputs { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: 0.4rem; }
+.forward-input { display: grid; gap: 0.15rem; font-size: 0.8rem; color: var(--muted); }
+.forward-input input {
+  width: 100%;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+.forward-input input[aria-invalid='true'] { border-color: var(--bad); }
+.forward-inputs .field-error, .forward-actions { grid-column: 1 / -1; }
+.forward-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.forward-result { display: grid; gap: 0.2rem; font-size: 0.9rem; }
+
+.activation-scale {
+  display: inline-block;
+  width: 48px;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(to right, var(--act-neg), var(--act-zero), var(--act-pos));
+}
+.unit.has-value { stroke: var(--bg); }
+
+/* Training Lab */
+.training { display: grid; gap: 1rem; }
+.training-grid { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 1rem; align-items: start; }
+.training-main { display: grid; gap: 1rem; min-width: 0; }
+.training-form { display: grid; gap: 0.8rem; }
+.training-form .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.training-form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 0.3rem; }
+.training-form legend { font-size: 0.9rem; font-weight: 600; margin-bottom: 0.2rem; }
+.checkbox { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; }
+.training-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.progress { display: grid; gap: 0.35rem; }
+.progress-bar { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.progress-bar > span { display: block; height: 100%; background: var(--accent); transition: width 0.2s; }
+@media (prefers-reduced-motion: reduce) { .progress-bar > span { transition: none; } }
+.status-badge {
+  justify-self: start;
+  font-size: 0.8rem;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.status-running { color: var(--accent); }
+.status-completed { color: var(--ok); }
+.status-cancelled { color: var(--warn); }
+.status-failed { color: var(--bad); }
+.metric-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 0.6rem; margin: 0; }
+.metric-tiles div { background: var(--surface-2); border-radius: 8px; padding: 0.5rem 0.7rem; }
+.metric-tiles dt { font-size: 0.75rem; color: var(--muted); }
+.metric-tiles dd { margin: 0; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+.chart { margin: 0; gap: 0.25rem; min-width: 0; }
+.chart h3, .activation-strips h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+.activation-strips { display: grid; gap: 0.5rem; }
+.strip { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: 0.5rem; align-items: center; font-size: 0.85rem; }
+.strip-cells { display: flex; flex-wrap: wrap; gap: 2px; }
+.strip-cells span { width: 16px; height: 16px; border-radius: 3px; }
+
+.editor, .inspector, .forward-panel {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -421,7 +504,8 @@ code {
 
 @media (max-width: 1200px) {
   .studio-grid { grid-template-columns: 300px minmax(0, 1fr); }
-  .inspector { grid-column: 1 / -1; }
+  .studio-side { grid-column: 1 / -1; }
+  .training-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 720px) {

@@ -4,6 +4,7 @@ import { HealthIndicator } from './components/HealthIndicator'
 import { ArchitectureStudio } from './features/architecture-studio/ArchitectureStudio'
 import { Dashboard } from './features/dashboard/Dashboard'
 import { PlannedSection } from './features/planned/PlannedSection'
+import { TrainingLab } from './features/training-lab/TrainingLab'
 import { useBackendHealth } from './hooks/useBackendHealth'
 
 export default function App() {
@@ -40,6 +41,8 @@ export default function App() {
           <Dashboard health={health} onRecheck={recheck} />
         ) : section.id === 'studio' ? (
           <ArchitectureStudio />
+        ) : section.id === 'training' ? (
+          <TrainingLab onOpenStudio={() => setActive('studio')} />
         ) : (
           <PlannedSection section={section} />
         )}

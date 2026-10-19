@@ -1,12 +1,19 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { ApiError } from '../../api/client'
+import { useTensor, type TensorState } from '../../hooks/useTensor'
 import { findNode, formatShape, unitCount } from '../../lib/graph'
-import { useModelStore, type Selection } from '../../stores/modelStore'
+import { formatValue } from '../../lib/values'
+import { currentForward, useModelStore, type Selection } from '../../stores/modelStore'
 import { ACTIVATION_LABELS, type Activation } from '../../types/architecture'
 import type { GraphNode, ModelGraph } from '../../types/graph'
+import type { TensorResponse } from '../../types/training'
 import { EmptyState } from '../states/StateViews'
 
-const NOT_YET_MEASURED = 'Not available yet. Real values arrive with PyTorch models in Milestone 4.'
+const RUN_FORWARD_HINT = 'Run a forward pass to see the value this model computes.'
+const TRAIN_HINT = 'Train the model to see gradients.'
+
+const fmt = (v: number) => formatValue(v, 4)
 
 export function Inspector({ graph }: { graph: ModelGraph | null }) {
   const selection = useModelStore((s) => s.selection)
@@ -39,10 +46,29 @@ function SelectionDetails({ graph, selection }: { graph: ModelGraph; selection: 
   return <LayerDetails node={node} />
 }
 
+/** Tensors of the selected model, refreshed whenever its weights change. */
+function useModelTensor(tensorId: string | null): TensorState {
+  const modelId = useModelStore((s) => s.modelId)
+  const version = useModelStore((s) => s.weightsVersion)
+  return useTensor(modelId, tensorId, version)
+}
+
+/** Measured values for one layer from the latest forward pass, if current. */
+function useLayerValues(nodeId: string) {
+  const forward = useModelStore(currentForward)
+  const values = forward?.response.activations[nodeId]
+  return values ? { pre: values.pre?.[0] ?? null, post: values.post[0] } : null
+}
+
 function LayerDetails({ node }: { node: GraphNode }) {
   const units = unitCount(node)
   const inFeatures = numberAttr(node, 'in_features')
   const outFeatures = numberAttr(node, 'out_features')
+  const learned = node.op_type !== 'Input'
+  const weights = useModelTensor(learned ? `${node.id}.weight` : null)
+  const gradients = useModelTensor(learned ? `${node.id}.weight.grad` : null)
+  const values = useLayerValues(node.id)
+
   return (
     <section aria-label={`Layer ${node.name}`}>
       <p className="inspector-kind">Layer</p>
@@ -50,7 +76,7 @@ function LayerDetails({ node }: { node: GraphNode }) {
       <dl className="facts">
         <Fact label="Operator">{node.op_type}</Fact>
         <Fact label="Units">{units ?? 'Unknown'}</Fact>
-        {node.op_type !== 'Input' && <Fact label="Activation">{activationLabel(node)}</Fact>}
+        {learned && <Fact label="Activation">{activationLabel(node)}</Fact>}
         {node.input_shapes.length > 0 && <Fact label="Input shape">{node.input_shapes.map(formatShape).join(', ')}</Fact>}
         {node.output_shapes.length > 0 && <Fact label="Output shape">{node.output_shapes.map(formatShape).join(', ')}</Fact>}
         <Fact label="Parameters">
@@ -64,11 +90,24 @@ function LayerDetails({ node }: { node: GraphNode }) {
                 </span>
               )}
             </>
-          ) : node.op_type === 'Input' ? (
-            'None (inputs are data, not learned)'
-          ) : (
+          ) : learned ? (
             'Unknown'
+          ) : (
+            'None (inputs are data, not learned)'
           )}
+        </Fact>
+        {learned && (
+          <Fact label="Weights">
+            <TensorView state={weights} render={summaryText} />
+          </Fact>
+        )}
+        {learned && (
+          <Fact label="Weight gradients">
+            <TensorView state={gradients} render={summaryText} missing={TRAIN_HINT} />
+          </Fact>
+        )}
+        <Fact label={learned ? 'Activations' : 'Values'}>
+          {values ? <span className="mono">{values.post.map(fmt).join(', ')}</span> : RUN_FORWARD_HINT}
         </Fact>
       </dl>
     </section>
@@ -79,6 +118,9 @@ function UnitDetails({ graph, node, index }: { graph: ModelGraph; node: GraphNod
   const select = useModelStore((s) => s.select)
   const count = unitCount(node) ?? 0
   const inFeatures = numberAttr(node, 'in_features')
+  const learned = node.op_type !== 'Input'
+  const bias = useModelTensor(learned ? `${node.id}.bias` : null)
+  const values = useLayerValues(node.id)
   const outgoing = graph.edges
     .filter((e) => e.source === node.id)
     .reduce((sum, e) => {
@@ -104,7 +146,7 @@ function UnitDetails({ graph, node, index }: { graph: ModelGraph; node: GraphNod
         </div>
       </div>
       <dl className="facts">
-        {node.op_type !== 'Input' && <Fact label="Activation">{activationLabel(node)}</Fact>}
+        {learned && <Fact label="Activation">{activationLabel(node)}</Fact>}
         {inFeatures !== null && <Fact label="Incoming connections">{inFeatures}</Fact>}
         <Fact label="Outgoing connections">{outgoing}</Fact>
         {inFeatures !== null && (
@@ -112,7 +154,19 @@ function UnitDetails({ graph, node, index }: { graph: ModelGraph; node: GraphNod
             {inFeatures + 1} <span className="muted">= {inFeatures} weights + 1 bias</span>
           </Fact>
         )}
-        <Fact label="Activation value">{NOT_YET_MEASURED}</Fact>
+        {learned && (
+          <Fact label="Bias">
+            <TensorView state={bias} render={(t) => <span className="mono">{fmt(t.values[index])}</span>} />
+          </Fact>
+        )}
+        {values && learned && values.pre && (
+          <Fact label="Weighted sum (W·x + b)">
+            <span className="mono">{fmt(values.pre[index])}</span>
+          </Fact>
+        )}
+        <Fact label={learned ? 'Activation value' : 'Input value'}>
+          {values ? <span className="mono">{fmt(values.post[index])}</span> : RUN_FORWARD_HINT}
+        </Fact>
       </dl>
       <button type="button" className="link-button" onClick={() => select({ kind: 'layer', nodeId: node.id })}>
         Show the whole layer
@@ -134,14 +188,21 @@ function ConnectionDetails({
 }) {
   const sourceUnits = unitCount(source)
   const targetUnits = unitCount(target)
-  const single = selection.sourceIndex !== null && selection.targetIndex !== null
+  const { sourceIndex, targetIndex } = selection
+  const single = sourceIndex !== null && targetIndex !== null
+  const weights = useModelTensor(`${target.id}.weight`)
+  const gradients = useModelTensor(`${target.id}.weight.grad`)
+  // A Linear weight is [target units][source units].
+  const at = (t: TensorResponse) =>
+    single && sourceUnits !== null ? t.values[targetIndex * sourceUnits + sourceIndex] : undefined
+
   return (
     <section aria-label="Connection">
       <p className="inspector-kind">{single ? 'Connection' : 'Layer connection'}</p>
       <h3>
         {source.name}
-        {selection.sourceIndex !== null && ` · unit ${selection.sourceIndex + 1}`} → {target.name}
-        {selection.targetIndex !== null && ` · unit ${selection.targetIndex + 1}`}
+        {sourceIndex !== null && ` · unit ${sourceIndex + 1}`} → {target.name}
+        {targetIndex !== null && ` · unit ${targetIndex + 1}`}
       </h3>
       <dl className="facts">
         {tensor && <Fact label="Tensor">{tensor}</Fact>}
@@ -153,9 +214,49 @@ function ConnectionDetails({
             </span>
           </Fact>
         )}
-        <Fact label={single ? 'Weight' : 'Weights'}>{NOT_YET_MEASURED}</Fact>
+        <Fact label={single ? 'Weight' : 'Weights'}>
+          <TensorView
+            state={weights}
+            render={(t) => (single ? <span className="mono">{fmt(at(t) ?? Number.NaN)}</span> : summaryText(t))}
+          />
+        </Fact>
+        <Fact label="Gradient">
+          <TensorView
+            state={gradients}
+            missing={TRAIN_HINT}
+            render={(t) => (single ? <span className="mono">{fmt(at(t) ?? Number.NaN)}</span> : summaryText(t))}
+          />
+        </Fact>
       </dl>
     </section>
+  )
+}
+
+/** Loading, missing (404), error, and ready states for one tensor value. */
+function TensorView({
+  state,
+  render,
+  missing,
+}: {
+  state: TensorState
+  render: (tensor: TensorResponse) => ReactNode
+  missing?: string
+}) {
+  if (state.state === 'idle') return null
+  if (state.state === 'loading') return <span className="muted">Loading…</span>
+  if (state.state === 'error') {
+    if (missing && state.error instanceof ApiError && state.error.status === 404) return <>{missing}</>
+    return <span className="field-error">{state.error instanceof Error ? state.error.message : 'Could not load values.'}</span>
+  }
+  return <>{render(state.data)}</>
+}
+
+function summaryText(t: TensorResponse) {
+  const s = t.summary
+  return (
+    <span className="mono">
+      min {fmt(s.min)}, max {fmt(s.max)}, mean {fmt(s.mean)}
+    </span>
   )
 }
 

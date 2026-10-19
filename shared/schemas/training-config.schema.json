@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://neurovision.local/schemas/training-config.schema.json",
+  "additionalProperties": false,
+  "properties": {
+    "dataset": {
+      "default": "moons",
+      "enum": [
+        "moons",
+        "circles",
+        "spiral"
+      ],
+      "title": "Dataset",
+      "type": "string"
+    },
+    "samples": {
+      "default": 400,
+      "maximum": 2000,
+      "minimum": 50,
+      "title": "Samples",
+      "type": "integer"
+    },
+    "noise": {
+      "default": 0.1,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Noise",
+      "type": "number"
+    },
+    "validation_split": {
+      "default": 0.2,
+      "maximum": 0.5,
+      "minimum": 0.1,
+      "title": "Validation Split",
+      "type": "number"
+    },
+    "epochs": {
+      "default": 100,
+      "maximum": 500,
+      "minimum": 1,
+      "title": "Epochs",
+      "type": "integer"
+    },
+    "batch_size": {
+      "default": 32,
+      "maximum": 512,
+      "minimum": 1,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "learning_rate": {
+      "default": 0.03,
+      "exclusiveMinimum": 0,
+      "maximum": 1,
+      "title": "Learning Rate",
+      "type": "number"
+    },
+    "optimizer": {
+      "default": "adam",
+      "enum": [
+        "sgd",
+        "adam"
+      ],
+      "title": "Optimizer",
+      "type": "string"
+    },
+    "seed": {
+      "default": 0,
+      "maximum": 2147483647,
+      "minimum": 0,
+      "title": "Seed",
+      "type": "integer"
+    },
+    "capture_layers": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8,
+      "title": "Capture Layers",
+      "type": "array"
+    },
+    "epoch_delay_ms": {
+      "default": 0,
+      "maximum": 500,
+      "minimum": 0,
+      "title": "Epoch Delay Ms",
+      "type": "integer"
+    }
+  },
+  "title": "TrainingConfig",
+  "type": "object"
+}

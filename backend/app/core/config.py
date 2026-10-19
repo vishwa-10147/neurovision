@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     )
 
     environment: str = "development"
+    # Training jobs that may run at once; more are rejected with 429.
+    max_training_jobs: int = 2
     # Comma-separated list in the environment, e.g.
     # NEUROVISION_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
     cors_origins: Annotated[list[str], NoDecode] = [

@@ -13,3 +13,5 @@ select = ["E", "F", "I", "B", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# Fail instead of hanging if a training job or WebSocket never finishes.
+timeout = 60

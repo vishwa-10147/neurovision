@@ -1,7 +1,8 @@
 """Build the normalized graph for an educational dense network.
 
-Graph construction is pure arithmetic over the configuration, so it does not
-need PyTorch. Capabilities report only what is implemented: graph inspection.
+Graph construction is pure arithmetic over the configuration. Each educational
+graph is backed by a PyTorch network (app/ml/educational_network.py), so it
+supports inference, training, activations, and gradients.
 """
 
 from app.schemas.architecture import DenseNetworkConfig
@@ -15,12 +16,12 @@ from app.schemas.graph import (
     ParameterSummary,
 )
 
-GRAPH_ONLY = Capabilities(
+EDUCATIONAL_CAPABILITIES = Capabilities(
     graph=True,
-    inference=False,
-    training=False,
-    activations=False,
-    gradients=False,
+    inference=True,
+    training=True,
+    activations=True,
+    gradients=True,
     attention=False,
 )
 
@@ -88,7 +89,7 @@ def build_dense_graph(config: DenseNetworkConfig, model_id: str) -> ModelGraph:
             id=model_id,
             name=config.name,
             source_format="educational",
-            capabilities=GRAPH_ONLY,
+            capabilities=EDUCATIONAL_CAPABILITIES,
             metadata={
                 "educational": {
                     "parameter_count": total,

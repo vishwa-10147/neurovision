@@ -3,6 +3,7 @@ import { ErrorState, LoadingState } from '../../components/states/StateViews'
 import { totalParameters } from '../../lib/graph'
 import { useModelStore } from '../../stores/modelStore'
 import { ArchitectureEditor } from './ArchitectureEditor'
+import { ForwardPanel } from './ForwardPanel'
 import { GraphView } from './GraphView'
 import { useModelSync } from './useModelSync'
 
@@ -44,7 +45,10 @@ export function ArchitectureStudio() {
           )}
         </div>
 
-        <Inspector graph={graph} />
+        <div className="studio-side">
+          <ForwardPanel />
+          <Inspector graph={graph} />
+        </div>
       </div>
     </section>
   )

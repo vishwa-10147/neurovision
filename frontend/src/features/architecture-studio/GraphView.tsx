@@ -1,8 +1,8 @@
 import { Box, Square } from 'lucide-react'
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { ErrorBoundary } from '../../components/states/ErrorBoundary'
 import { ErrorState, LoadingState } from '../../components/states/StateViews'
-import { useModelStore } from '../../stores/modelStore'
+import { currentForward, useModelStore } from '../../stores/modelStore'
 import type { ModelGraph } from '../../types/graph'
 import { Network2D } from '../visualization-2d/Network2D'
 import { hasWebGL } from '../visualization-3d/environment'
@@ -14,7 +14,16 @@ const Network3D = lazy(() => import('../visualization-3d/Network3D'))
 export function GraphView({ graph, overlay }: { graph: ModelGraph; overlay: string | null }) {
   const viewMode = useModelStore((s) => s.viewMode)
   const setViewMode = useModelStore((s) => s.setViewMode)
+  const forward = useModelStore(currentForward)
   const [webgl] = useState(hasWebGL)
+  // First (only) example's post-activation values for each layer.
+  const activations = useMemo(
+    () =>
+      forward
+        ? Object.fromEntries(Object.entries(forward.response.activations).map(([id, v]) => [id, v.post[0]]))
+        : null,
+    [forward],
+  )
 
   return (
     <div className="graph-view">
@@ -29,7 +38,7 @@ export function GraphView({ graph, overlay }: { graph: ModelGraph; overlay: stri
         </button>
       </div>
       {viewMode === '2d' ? (
-        <Network2D graph={graph} overlay={overlay} />
+        <Network2D graph={graph} overlay={overlay} activations={activations} />
       ) : !webgl ? (
         <div className="graph-view-fallback">
           <ErrorState

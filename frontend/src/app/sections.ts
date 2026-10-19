@@ -30,8 +30,8 @@ export const SECTIONS: Section[] = [
     id: 'training',
     label: 'Training Lab',
     icon: Activity,
-    milestone: 'Milestone 4',
-    summary: 'Train PyTorch networks and inspect real loss, activations, and gradients.',
+    milestone: null,
+    summary: 'Train PyTorch networks and watch real loss, accuracy, and activations.',
   },
   {
     id: 'explorer',
