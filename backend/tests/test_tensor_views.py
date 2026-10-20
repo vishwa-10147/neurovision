@@ -217,7 +217,10 @@ class TestAttention:
         [candidate] = imported["report"]["attention"]
         assert candidate["shape"] == ["batch", 4, "seq", "seq"]
         assert candidate["layout"] == ["batch", "heads", "query", "key"]
-        assert (candidate["name"], candidate["tensor"]) == ("attention_weights", "weights")
+        assert (candidate["name"], candidate["tensor"]) == (
+            "attention_weights",
+            "weights",
+        )
 
         heads = view(
             client,
