@@ -6,16 +6,31 @@ import { runValuesByNode, useExplorerStore } from '../../stores/explorerStore'
 import { GraphView } from '../architecture-studio/GraphView'
 import { ImportReportPanel } from './ImportReportPanel'
 import { RunPanel } from './RunPanel'
+import { TensorViewer } from './TensorViewer'
 import { UploadPanel } from './UploadPanel'
 
 export function ModelExplorer() {
-  const { modelId, graph, report, selection, viewMode, select, setViewMode, setImported, run } = useExplorerStore()
+  const { modelId, graph, report, selection, viewMode, select, setViewMode, setImported, run, viewer, openViewer } =
+    useExplorerStore()
   const runValues = useMemo(() => runValuesByNode(run), [run])
+  const attention = report?.attention
   // Imported weights never change, so the weights version stays 0.
   const view = useMemo<ModelView>(
-    () => ({ modelId, weightsVersion: 0, forward: null, selection, select, viewMode, setViewMode, runValues }),
-    [modelId, selection, select, viewMode, setViewMode, runValues],
+    () => ({
+      modelId,
+      weightsVersion: 0,
+      forward: null,
+      selection,
+      select,
+      viewMode,
+      setViewMode,
+      runValues,
+      explorer: { run, attention: attention ?? [], openViewer },
+    }),
+    [modelId, selection, select, viewMode, setViewMode, runValues, run, attention, openViewer],
   )
+  // Filters need only the model; tensor maps need a run the worker still keeps.
+  const showViewer = modelId && viewer && (viewer.kind === 'filters' || run)
 
   return (
     <ModelViewContext.Provider value={view}>
@@ -27,8 +42,9 @@ export function ModelExplorer() {
         <div className="studio-grid">
           <div className="studio-side">
             <UploadPanel onImported={setImported} />
-            {graph && report && <ImportReportPanel graph={graph} report={report} />}
+            {graph && report && <ImportReportPanel graph={graph} report={report} run={run} onView={openViewer} />}
           </div>
+          <div className="explorer-center">
           <div className="studio-canvas card">
             {graph ? (
               <GraphView graph={graph} overlay={null} />
@@ -40,6 +56,10 @@ export function ModelExplorer() {
                 </EmptyState>
               </div>
             )}
+          </div>
+          {showViewer && (
+            <TensorViewer modelId={modelId} runId={run?.run_id ?? ''} target={viewer} onClose={() => openViewer(null)} />
+          )}
           </div>
           <div className="studio-side">
             {/* Keyed by model, so input drafts start fresh for each import. */}

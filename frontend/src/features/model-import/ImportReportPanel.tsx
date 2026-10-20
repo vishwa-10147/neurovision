@@ -1,7 +1,9 @@
 import { AlertTriangle, Check, X } from 'lucide-react'
 import { useState } from 'react'
 import type { Capabilities, ModelGraph } from '../../types/graph'
-import type { ImportReport } from '../../types/imports'
+import type { ImportReport, RunResponse } from '../../types/imports'
+import type { ViewerTarget } from '../../types/maps'
+import { tensorTarget } from './viewerTargets'
 
 const CAPABILITIES: { key: keyof Capabilities; label: string; unavailable: string }[] = [
   { key: 'graph', label: 'Graph inspection', unavailable: '' },
@@ -13,7 +15,17 @@ const CAPABILITIES: { key: keyof Capabilities; label: string; unavailable: strin
 
 const WARNINGS_SHOWN = 5
 
-export function ImportReportPanel({ graph, report }: { graph: ModelGraph; report: ImportReport }) {
+export function ImportReportPanel({
+  graph,
+  report,
+  run = null,
+  onView,
+}: {
+  graph: ModelGraph
+  report: ImportReport
+  run?: RunResponse | null
+  onView?: (target: ViewerTarget) => void
+}) {
   const [allWarnings, setAllWarnings] = useState(false)
   const onnx = graph.model.metadata.onnx as Record<string, unknown> | undefined
   const producer = [onnx?.producer_name, onnx?.producer_version].filter(Boolean).join(' ')
@@ -64,6 +76,45 @@ export function ImportReportPanel({ graph, report }: { graph: ModelGraph; report
           })}
         </ul>
       </div>
+
+      {report.attention.length > 0 && (
+        <div role="region" aria-label="Attention">
+          <h3>Attention ({report.attention.length})</h3>
+          <p className="muted">
+            Found by pattern: a softmax over the last axis of a square [..., S, S] tensor. Fused attention
+            operators, and layers whose sequence sizes are unknown, are not detected.
+          </p>
+          <ul className="plain-list">
+            {report.attention.map((a) => {
+              const output = graph.nodes.find((n) => n.id === a.node_id)?.output_tensors.indexOf(a.tensor) ?? 0
+              return (
+                <li key={a.node_id}>
+                  <span className="mono">{a.name}</span>{' '}
+                  {a.tensor !== a.name && <span className="muted mono">→ {a.tensor} </span>}
+                  <span className="muted">[{a.layout.join(', ')}]</span>{' '}
+                  {onView && (
+                    <button
+                      type="button"
+                      className="link-button"
+                      disabled={!run?.retained}
+                      onClick={() => {
+                        // Use the run's real shape: symbolic sizes are filled in by then.
+                        const measured = [...(run?.intermediates ?? []), ...(run?.outputs ?? [])].find(
+                          (t) => t.node_id === a.node_id && t.name === a.tensor,
+                        )
+                        if (measured) onView(tensorTarget(a.node_id, Math.max(0, output), measured.shape, a.tensor, a))
+                      }}
+                    >
+                      View attention
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          {onView && !run?.retained && <p className="muted">Run the model first to see the weights.</p>}
+        </div>
+      )}
 
       {report.unsupported_operators.length > 0 && (
         <div>

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import attentionGrid from '../../../shared/schemas/examples/attention.grid.json'
+import attentionMap from '../../../shared/schemas/examples/attention.map.json'
 import exampleConfig from '../../../shared/schemas/examples/dense-network.config.json'
 import denseGraph from '../../../shared/schemas/examples/dense-network.graph.json'
 import invalidCases from '../../../shared/schemas/examples/invalid-cases.json'
@@ -7,6 +9,7 @@ import stepEvent from '../../../shared/schemas/examples/training-step.event.json
 import { DenseNetworkConfigSchema } from './architecture'
 import { TrainingEventSchema } from './events'
 import { ModelGraphSchema } from './graph'
+import { TensorGridSchema, TensorMapSchema } from './maps'
 
 // The same fixtures are validated by backend/tests/test_schemas.py, which keeps
 // the Zod mirrors and the Pydantic source of truth in agreement.
@@ -23,6 +26,13 @@ describe('shared contract fixtures', () => {
     const graph = ModelGraphSchema.parse(onnxGraph)
     expect(graph.nodes[1].unsupported).toBe(true)
     expect(graph.nodes[1].output_shapes).toEqual([['N', null, null, null]])
+  })
+
+  it('accepts the example tensor map and grid from a real attention run', () => {
+    const grid = TensorGridSchema.parse(attentionGrid)
+    const map = TensorMapSchema.parse(attentionMap)
+    expect(map.values).toEqual(grid.items[1].values)
+    expect(grid.items).toHaveLength(grid.items_total)
   })
 
   it('accepts the example training event', () => {

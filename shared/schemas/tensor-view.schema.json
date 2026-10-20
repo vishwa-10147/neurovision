@@ -1,0 +1,321 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://neurovision.local/schemas/tensor-view.schema.json",
+  "$defs": {
+    "GridItem": {
+      "properties": {
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "stride": {
+          "title": "Stride",
+          "type": "integer"
+        },
+        "values": {
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "title": "Values",
+          "type": "array"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Min"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Max"
+        },
+        "non_finite_count": {
+          "title": "Non Finite Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "stride",
+        "values",
+        "min",
+        "max",
+        "non_finite_count"
+      ],
+      "title": "GridItem",
+      "type": "object"
+    },
+    "TensorGridResponse": {
+      "description": "One thumbnail per index along `axis` (channels, attention heads).",
+      "properties": {
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        },
+        "tensor": {
+          "title": "Tensor",
+          "type": "string"
+        },
+        "shape": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Shape",
+          "type": "array"
+        },
+        "fixed": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Fixed",
+          "type": "array"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Min"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Max"
+        },
+        "non_finite_count": {
+          "title": "Non Finite Count",
+          "type": "integer"
+        },
+        "axis": {
+          "title": "Axis",
+          "type": "integer"
+        },
+        "items_total": {
+          "title": "Items Total",
+          "type": "integer"
+        },
+        "rows": {
+          "title": "Rows",
+          "type": "integer"
+        },
+        "cols": {
+          "title": "Cols",
+          "type": "integer"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/GridItem"
+          },
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "model_id",
+        "run_id",
+        "node_id",
+        "tensor",
+        "shape",
+        "fixed",
+        "min",
+        "max",
+        "non_finite_count",
+        "axis",
+        "items_total",
+        "rows",
+        "cols",
+        "items"
+      ],
+      "title": "TensorGridResponse",
+      "type": "object"
+    },
+    "TensorMapResponse": {
+      "description": "One 2D map: the last two dimensions at the `fixed` leading indices.",
+      "properties": {
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        },
+        "tensor": {
+          "title": "Tensor",
+          "type": "string"
+        },
+        "shape": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Shape",
+          "type": "array"
+        },
+        "fixed": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Fixed",
+          "type": "array"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Min"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Max"
+        },
+        "non_finite_count": {
+          "title": "Non Finite Count",
+          "type": "integer"
+        },
+        "rows": {
+          "title": "Rows",
+          "type": "integer"
+        },
+        "cols": {
+          "title": "Cols",
+          "type": "integer"
+        },
+        "stride": {
+          "title": "Stride",
+          "type": "integer"
+        },
+        "values": {
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "model_id",
+        "run_id",
+        "node_id",
+        "tensor",
+        "shape",
+        "fixed",
+        "min",
+        "max",
+        "non_finite_count",
+        "rows",
+        "cols",
+        "stride",
+        "values"
+      ],
+      "title": "TensorMapResponse",
+      "type": "object"
+    },
+    "TensorViewRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "node_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Node Id",
+          "type": "string"
+        },
+        "output": {
+          "default": 0,
+          "maximum": 64,
+          "minimum": 0,
+          "title": "Output",
+          "type": "integer"
+        },
+        "fixed": {
+          "items": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 8,
+          "title": "Fixed",
+          "type": "array"
+        }
+      },
+      "required": [
+        "run_id",
+        "node_id"
+      ],
+      "title": "TensorViewRequest",
+      "type": "object"
+    }
+  },
+  "title": "TensorView"
+}

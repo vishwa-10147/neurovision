@@ -5,7 +5,8 @@
  */
 import { createContext, useContext } from 'react'
 import type { ForwardSnapshot, Selection, ViewMode } from '../stores/modelStore'
-import type { TensorValues } from '../types/imports'
+import type { AttentionCandidate, RunResponse, TensorValues } from '../types/imports'
+import type { ViewerTarget } from '../types/maps'
 
 export interface ModelView {
   modelId: string | null
@@ -19,6 +20,12 @@ export interface ModelView {
   setViewMode: (mode: ViewMode) => void
   /** Imported models: tensors each node produced in the latest run, if any. */
   runValues?: Record<string, TensorValues[]> | null
+  /** Model Explorer only: the last run, attention candidates, and the map viewer. */
+  explorer?: {
+    run: RunResponse | null
+    attention: AttentionCandidate[]
+    openViewer: (target: ViewerTarget) => void
+  }
 }
 
 export const ModelViewContext = createContext<ModelView | null>(null)

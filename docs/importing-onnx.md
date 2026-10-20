@@ -97,6 +97,41 @@ not uploaded, or has input types other than float, double, float16,
 int8/16/32/64, uint8, or bool. The panel lists the reasons; inspection
 still works.
 
+## Feature maps, attention, and filters
+
+After a run, the inspector offers views of the real tensors:
+
+-   **View as maps** on any operator output (or graph input) with two or
+    more dimensions. For 4D tensors you get every channel as a thumbnail
+    on one shared color scale, and a large map of the selected channel.
+    Hover it, or focus it and use the arrow keys, to read exact values.
+    Orange is negative, blue positive.
+-   **Attention.** The import report lists softmaxes that look like
+    attention weights under "Attention". **View attention** shows each
+    head as a query × key matrix on a fixed 0–1 scale; each row is one
+    query position's weights over the key positions and sums to 1. Try
+    the **Self-attention** sample with a sequence length of 7 or more.
+-   **View filters** on `Conv` weights draws each kernel
+    `[out, in, kH, kW]` as a small map: one row per filter, one column
+    per input channel.
+
+Verified with a real `torch.nn.MultiheadAttention` exported from
+PyTorch: the per-head weights shown match PyTorch's own to 1e-5.
+
+### What these views cannot do
+
+| Limitation | Why / what happens |
+|---|---|
+| Attention is found by pattern | A `Softmax` over the last axis of a square `[..., S, S]` tensor (rank ≥ 3). It is a guess and is labeled as one. |
+| Not detected: fused attention | `com.microsoft` `Attention` / `MultiHeadAttention` and other fused operators hide the weights inside one operator. |
+| Not detected: unknown sizes | If shape inference cannot tell that the last two dimensions are equal, the softmax is not listed. You can still view it as plain maps. |
+| `nn.TransformerEncoderLayer` export | PyTorch 2.14's classic exporter (`dynamo=False`) fails on it (scaled-dot-product attention). `nn.MultiheadAttention` on its own exports and is detected. |
+| No token text | ONNX files contain no tokenizer, so axes are positions 0, 1, 2, … |
+| Only recent runs | The last 4 runs are kept (256 MB in total). Older runs, very large runs, and runs from before a worker restart say "Run the model again". |
+| Bounded views | A grid shows at most 256 channels or heads at 24 × 24 cells; a detail map at most 65,536 cells. Larger maps are block averages (the readout says so). |
+| Dimension roles | 4D tensors are assumed to be `[batch, channels, height, width]`. Channels-last models will show the wrong axes as maps. |
+| Filters | Drawn from the first 4,096 weight values: at most 16 filters × 8 input channels, with a note when more exist. |
+
 ## Supported and unsupported cases
 
 | Case | Behavior |

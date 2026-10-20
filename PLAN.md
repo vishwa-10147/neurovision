@@ -170,16 +170,17 @@ a runnable, testable state.
 
 ### CNN
 
--   [ ] Visualize convolution, pooling, and feature maps.
--   [ ] Show tensor dimensions and filter parameters.
--   [ ] Support selected-channel views and bounded data access.
+-   [x] Visualize convolution, pooling, and feature maps.
+-   [x] Show tensor dimensions and filter parameters.
+-   [x] Support selected-channel views and bounded data access.
 
 ### Transformers
 
--   [ ] Visualize tokens, embeddings, attention heads, and attention
-    matrices.
--   [ ] Make model-specific capability limitations explicit.
--   [ ] Avoid rendering full attention tensors without filtering.
+-   [x] Visualize tokens, embeddings, attention heads, and attention
+    matrices. (Tokens by position only: ONNX files carry no tokenizer.
+    Embeddings are viewed as sequence × feature maps.)
+-   [x] Make model-specific capability limitations explicit.
+-   [x] Avoid rendering full attention tensors without filtering.
 
 ### Acceptance criteria
 

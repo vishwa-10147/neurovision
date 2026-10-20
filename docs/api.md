@@ -279,7 +279,10 @@ Runs an imported model in ONNX Runtime, inside an isolated worker process
 -   `capture` (optional): operator node ids whose outputs to return.
     Omitted, every operator is captured for graphs up to 200 operators.
 
-Returns `{model_id, runtime, elapsed_ms, outputs, intermediates, notes}`.
+Returns `{model_id, run_id, retained, inputs, runtime, elapsed_ms,
+outputs, intermediates, notes}`. `run_id` identifies the run's tensors
+for the map views below; `retained` is `false` when they were too large
+to keep; `inputs` gives each fed input's concrete shape.
 Each tensor has `name`, producing `node_id`, `shape`, `dtype`, `count`,
 `summary` (finite values), `non_finite_count`, at most 4,096 `values`,
 and `truncated`. `elapsed_ms` is model execution only; `notes` mention
@@ -299,9 +302,38 @@ budget and evicts the least recently used models.
 Supported and unsupported cases are listed in
 [importing-onnx.md](importing-onnx.md).
 
+## `GET /models/{model_id}/maps` and `GET /models/{model_id}/grids`
+
+Bounded 2D views of one tensor from a recent run
+(`shared/schemas/tensor-view.schema.json`). Query parameters:
+
+-   `run_id`: from the run response (`retained` must have been `true`).
+-   `node_id`: the operator (or `input_*` node for a graph input).
+-   `output` (default 0): which of the node's outputs.
+-   `fixed` (repeated): leading indices. For `maps`, one per dimension
+    before the last two (e.g. `fixed=0&fixed=3` is batch 0, channel 3 of
+    a 4D tensor). For `grids`, one per dimension before the last three.
+
+`maps` returns `{rows, cols, stride, values, min, max,
+non_finite_count, …}`: the last two dimensions, shrunk by `stride` ×
+`stride` block averages when over 65,536 cells. `grids` returns one item
+per index along the third-to-last dimension (at most 256, `items_total`
+says how many exist), each at most 24 × 24 cells, plus the overall
+`min`/`max` for a shared color scale. NaN/∞ values are `null` and left
+out of averages.
+
+Errors: `410 run_expired` (the run is no longer kept: run again),
+`422 validation_error` naming `query.node_id`, `query.output` or
+`query.fixed`, `504`/`429` as for runs, and `400
+capability_unavailable` for educational models.
+
+Imports report likely attention in `report.attention`: `{node_id, name,
+tensor, shape, layout}`, found by pattern (a `Softmax` over the last axis
+of a square `[..., S, S]` tensor).
+
 ## `GET /import/onnx/samples` and `POST /import/onnx/samples/{name}`
 
 Lists, and imports, small sample models (`mlp`, `cnn`, `residual`,
-`custom-op`) built in memory. They go through the same importer as
+`custom-op`, `attention`) built in memory. They go through the same importer as
 uploads. Their weights are seeded random values, so they show structure
 and tensors, not trained behavior.

@@ -7,8 +7,10 @@ import { formatShape } from '../../lib/graph'
 import { formatValue } from '../../lib/values'
 import type { GraphEdge, GraphNode } from '../../types/graph'
 import { InitializerRefSchema, type InitializerRef, type TensorValues } from '../../types/imports'
+import { tensorTarget } from '../../features/model-import/viewerTargets'
 
 const PREVIEW_VALUES = 12
+const CONV_OPS = new Set(['Conv', 'ConvTranspose'])
 const MAX_ATTRIBUTE_TEXT = 160
 
 /** Details of one operator in an imported graph. */
@@ -18,7 +20,16 @@ export function OperatorDetails({ node }: { node: GraphNode }) {
   const weights = new Set(initializers.map((i) => i.name))
   const attributes = Object.entries(node.attributes)
   const io = node.op_type === 'Input' || node.op_type === 'Output'
-  const measured = useModelView().runValues?.[node.id] ?? []
+  const { runValues, explorer } = useModelView()
+  const measured = runValues?.[node.id] ?? []
+  const fedInput = explorer?.run?.inputs.find((i) => i.node_id === node.id)
+  const attention = explorer?.attention.find((a) => a.node_id === node.id)
+  // Map views need the run's tensors to still be kept by the worker.
+  const canView = Boolean(explorer?.run?.retained)
+  const viewTensor = (name: string, shape: number[]) =>
+    explorer?.openViewer(
+      tensorTarget(node.id, Math.max(0, node.output_tensors.indexOf(name)), shape, name, attention),
+    )
 
   return (
     <section aria-label={`Operator ${node.name}`}>
@@ -62,11 +73,33 @@ export function OperatorDetails({ node }: { node: GraphNode }) {
         )}
         {typeof onnx.doc === 'string' && onnx.doc && <Fact label="Documentation">{onnx.doc}</Fact>}
       </dl>
+      {attention && (
+        <p className="inspector-note" role="note">
+          Likely attention weights: a softmax over a square {attention.layout.slice(-2).join(' × ')} tensor
+          (detected by pattern).
+        </p>
+      )}
+      {fedInput && canView && fedInput.shape.length >= 2 && (
+        <div className="initializers" aria-label="Input in the last run">
+          <h4>Input in the last run</h4>
+          <p className="muted mono">
+            {fedInput.name} {formatShape(fedInput.shape)} {fedInput.dtype}
+          </p>
+          <button type="button" className="link-button" onClick={() => viewTensor(fedInput.name, fedInput.shape)}>
+            View as maps
+          </button>
+        </div>
+      )}
       {measured.length > 0 && (
         <div className="initializers" aria-label="Output in the last run">
           <h4>Output in the last run</h4>
           {measured.map((tensor) => (
-            <MeasuredTensor key={tensor.name} tensor={tensor} />
+            <MeasuredTensor
+              key={tensor.name}
+              tensor={tensor}
+              onView={canView && tensor.shape.length >= 2 ? () => viewTensor(tensor.name, tensor.shape) : undefined}
+              viewLabel={attention ? 'View attention heads' : 'View as maps'}
+            />
           ))}
         </div>
       )}
@@ -74,7 +107,22 @@ export function OperatorDetails({ node }: { node: GraphNode }) {
         <div className="initializers">
           <h4>Weights and constants</h4>
           {initializers.map((init) => (
-            <InitializerView key={init.tensor_id} init={init} />
+            <InitializerView
+              key={init.tensor_id}
+              init={init}
+              onViewFilters={
+                explorer && CONV_OPS.has(node.op_type) && init.shape.length === 4 && !init.external
+                  ? () =>
+                      explorer.openViewer({
+                        kind: 'filters',
+                        nodeId: node.id,
+                        tensorId: init.tensor_id,
+                        shape: init.shape,
+                        label: init.name,
+                      })
+                  : undefined
+              }
+            />
           ))}
         </div>
       )}
@@ -117,7 +165,15 @@ export function TensorEdgeDetails({ edge, source, target }: { edge: GraphEdge; s
 }
 
 /** A tensor measured in the last run: its real shape, summary, and first values. */
-function MeasuredTensor({ tensor }: { tensor: TensorValues }) {
+function MeasuredTensor({
+  tensor,
+  onView,
+  viewLabel = 'View as maps',
+}: {
+  tensor: TensorValues
+  onView?: () => void
+  viewLabel?: string
+}) {
   const s = tensor.summary
   return (
     <div className="initializer">
@@ -145,6 +201,11 @@ function MeasuredTensor({ tensor }: { tensor: TensorValues }) {
           .join(', ')}
         {tensor.count > PREVIEW_VALUES ? ', …' : ''}
       </p>
+      {onView && (
+        <button type="button" className="link-button" onClick={onView}>
+          {viewLabel}
+        </button>
+      )}
     </div>
   )
 }
@@ -174,7 +235,7 @@ function TensorList({
 }
 
 /** One initializer: shape always, values fetched on request (bounded). */
-function InitializerView({ init }: { init: InitializerRef }) {
+function InitializerView({ init, onViewFilters }: { init: InitializerRef; onViewFilters?: () => void }) {
   const [open, setOpen] = useState(false)
   const { modelId, weightsVersion } = useModelView()
   const tensor = useTensor(open ? modelId : null, init.tensor_id, weightsVersion)
@@ -191,9 +252,16 @@ function InitializerView({ init }: { init: InitializerRef }) {
       {init.external ? (
         <p className="muted">Stored in an external data file that was not uploaded; values unavailable.</p>
       ) : !open ? (
-        <button type="button" className="link-button" onClick={() => setOpen(true)}>
-          Show values
-        </button>
+        <p className="button-row">
+          <button type="button" className="link-button" onClick={() => setOpen(true)}>
+            Show values
+          </button>
+          {onViewFilters && (
+            <button type="button" className="link-button" onClick={onViewFilters}>
+              View filters
+            </button>
+          )}
+        </p>
       ) : tensor.state === 'loading' || tensor.state === 'idle' ? (
         <p className="muted">Loading…</p>
       ) : tensor.state === 'error' ? (

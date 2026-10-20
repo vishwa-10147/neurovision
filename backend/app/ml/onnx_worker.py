@@ -6,7 +6,9 @@ or runaway allocation inside the runtime therefore cannot take down the API
 process; the parent kills and replaces this worker instead.
 
 Results are summarized here, so only bounded data crosses the process
-boundary, however large the model's tensors are.
+boundary, however large the model's tensors are. The tensors of the last
+few runs are kept (within a memory budget) so 2D views of feature maps and
+attention can be requested afterwards without running the model again.
 """
 
 import time
@@ -16,7 +18,11 @@ from typing import Any
 
 import numpy as np
 
+from app.ml.tensor_maps import MapRequestError, tensor_grid, tensor_map
+
 MAX_CACHED_SESSIONS = 4
+MAX_RETAINED_RUNS = 4
+MAX_RETAINED_BYTES = 256 * 1024 * 1024
 
 
 def _limit_memory(max_bytes: int) -> None:
@@ -59,11 +65,35 @@ def summarize(name: str, array: np.ndarray, max_values: int) -> dict[str, Any]:
     }
 
 
+class RetainedRuns:
+    """Tensors of recent runs (inputs and outputs), for later 2D views."""
+
+    def __init__(self) -> None:
+        self._runs: OrderedDict[str, dict[str, np.ndarray]] = OrderedDict()
+
+    def add(self, run_id: str, tensors: dict[str, np.ndarray]) -> bool:
+        size = sum(a.nbytes for a in tensors.values())
+        if size > MAX_RETAINED_BYTES:
+            return False
+        self._runs[run_id] = tensors
+        while len(self._runs) > MAX_RETAINED_RUNS or self._bytes() > MAX_RETAINED_BYTES:
+            self._runs.popitem(last=False)
+        return True
+
+    def get(self, run_id: str, name: str) -> np.ndarray | None:
+        tensors = self._runs.get(run_id)
+        return None if tensors is None else tensors.get(name)
+
+    def _bytes(self) -> int:
+        return sum(a.nbytes for run in self._runs.values() for a in run.values())
+
+
 def worker_main(conn: Connection, max_memory_bytes: int, threads: int) -> None:
     _limit_memory(max_memory_bytes)
     import onnxruntime as ort
 
     sessions: OrderedDict[str, Any] = OrderedDict()
+    retained = RetainedRuns()
     conn.send(("ready", ort.__version__))
 
     while True:
@@ -71,10 +101,29 @@ def worker_main(conn: Connection, max_memory_bytes: int, threads: int) -> None:
             message = conn.recv()
         except EOFError:
             return
-        if message[0] == "stop":
+        kind = message[0]
+        if kind == "stop":
             return
-        _, key, model_bytes, feeds, max_values = message
         try:
+            if kind in ("map", "grid"):
+                _, run_id, name, fixed, limits = message
+                array = retained.get(run_id, name)
+                if array is None:
+                    conn.send(("gone", None))
+                elif kind == "map":
+                    conn.send(("ok", tensor_map(array, fixed, limits["max_cells"])))
+                else:
+                    conn.send(
+                        (
+                            "ok",
+                            tensor_grid(
+                                array, fixed, limits["max_items"], limits["thumb_cells"]
+                            ),
+                        )
+                    )
+                continue
+
+            _, key, model_bytes, feeds, max_values, run_id = message
             load_ms = 0.0
             session = sessions.get(key)
             if session is None:
@@ -106,7 +155,13 @@ def worker_main(conn: Connection, max_memory_bytes: int, threads: int) -> None:
             summaries = [
                 summarize(n, a, max_values) for n, a in zip(names, arrays, strict=True)
             ]
-            conn.send(("ok", (summaries, {"load_ms": load_ms, "run_ms": run_ms})))
+            kept = retained.add(
+                run_id, {**feeds, **dict(zip(names, arrays, strict=True))}
+            )
+            timings = {"load_ms": load_ms, "run_ms": run_ms, "retained": kept}
+            conn.send(("ok", (summaries, timings)))
+        except MapRequestError as error:
+            conn.send(("bad_request", str(error)))
         except MemoryError:
             conn.send(("error", "The model ran out of memory."))
         except Exception as error:  # Runtime errors are reported, not raised.

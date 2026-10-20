@@ -17,6 +17,7 @@ browser.
 | Tensor slice    | `app/schemas/training.py`         | `shared/schemas/tensor.schema.json`        | `src/types/training.ts`          |
 | ONNX import     | `app/schemas/imports.py`          | `shared/schemas/import.schema.json`        | `src/types/imports.ts`           |
 | ONNX run        | `app/schemas/inference.py`        | `shared/schemas/onnx-run.schema.json`      | `src/types/imports.ts`           |
+| Tensor views    | `app/schemas/inference.py`        | `shared/schemas/tensor-view.schema.json`   | `src/types/maps.ts`              |
 | Error envelope  | `app/schemas/errors.py`           | `shared/schemas/error.schema.json`         | `src/api/client.ts`              |
 | Health          | `app/schemas/health.py`           | `shared/schemas/health.schema.json`        | `src/api/health.ts`              |
 

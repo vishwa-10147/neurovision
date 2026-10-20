@@ -45,6 +45,7 @@ const report = {
   warnings: [],
   inputs: [{ name: 'x', node_id: 'input_0', dtype: 'float', shape: ['batch', 4] }],
   inference_blockers: [] as string[],
+  attention: [],
 }
 const tensor = (name: string, nodeId: string, values: number[], shape = [1, 3]) => ({
   name,
@@ -64,6 +65,9 @@ const runResponse = {
   outputs: [tensor('y', 'node_1', [0.1, 0.9, 0.0])],
   intermediates: [tensor('h1', 'node_0', [0.1, 0.9, -0.4])],
   notes: ['This run also started the inference worker process.'],
+  run_id: 'run_test',
+  retained: true,
+  inputs: [{ name: 'x', node_id: 'input_0', shape: [1, 4], dtype: 'float32' }],
 }
 
 const inspector = () => within(screen.getByRole('complementary', { name: 'Inspector' }))

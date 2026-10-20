@@ -30,7 +30,111 @@ SAMPLES = [
         title="Custom operator",
         description="An MLP with a non-standard operator, to show how unknown operators appear.",
     ),
+    SampleModel(
+        name="attention",
+        title="Self-attention",
+        description="Token embeddings → 4-head scaled dot-product attention → projection, for any sequence length.",
+    ),
 ]
+
+# Sizes for the attention sample.
+VOCAB, MODEL_DIM, HEADS = 50, 16, 4
+
+
+def _attention_sample(rng: np.random.Generator) -> ModelProto:
+    """Embedding lookup, then one multi-head self-attention block.
+
+    Shapes: ids [batch, seq] -> x [batch, seq, 16] -> per head [batch, 4, seq, 4]
+    -> weights softmax(QKᵀ/√4) [batch, 4, seq, seq] -> output [batch, seq, 16].
+    """
+    head_dim = MODEL_DIM // HEADS
+    i64 = TensorProto.INT64
+
+    def const(name: str, values: list[int]) -> TensorProto:
+        return numpy_helper.from_array(np.array(values, dtype=np.int64), name)
+
+    split = [0, 0, HEADS, head_dim]  # 0 copies batch and seq (dynamic).
+    nodes = [
+        helper.make_node("Gather", ["embedding", "ids"], ["x"], name="token_embedding")
+    ]
+    for proj in ("q", "k", "v"):
+        nodes += [
+            helper.make_node(
+                "MatMul", ["x", f"w_{proj}"], [f"{proj}_flat"], name=f"{proj}_proj"
+            ),
+            helper.make_node(
+                "Reshape",
+                [f"{proj}_flat", "split_heads"],
+                [f"{proj}_split"],
+                name=f"{proj}_split_heads",
+            ),
+            helper.make_node(
+                "Transpose",
+                [f"{proj}_split"],
+                [f"{proj}_heads"],
+                name=f"{proj}_to_heads",
+                perm=[0, 2, 3, 1] if proj == "k" else [0, 2, 1, 3],
+            ),
+        ]
+    nodes += [
+        # k_heads is [batch, heads, head_dim, seq], so this is Q·Kᵀ.
+        helper.make_node(
+            "MatMul", ["q_heads", "k_heads"], ["scores_raw"], name="attention_scores"
+        ),
+        helper.make_node(
+            "Div", ["scores_raw", "scale"], ["scores"], name="scale_scores"
+        ),
+        helper.make_node(
+            "Softmax", ["scores"], ["weights"], name="attention_weights", axis=-1
+        ),
+        helper.make_node(
+            "MatMul", ["weights", "v_heads"], ["context_heads"], name="weighted_values"
+        ),
+        helper.make_node(
+            "Transpose",
+            ["context_heads"],
+            ["context_split"],
+            name="merge_heads",
+            perm=[0, 2, 1, 3],
+        ),
+        helper.make_node(
+            "Reshape",
+            ["context_split", "merge_shape"],
+            ["context"],
+            name="concat_heads",
+        ),
+        helper.make_node("MatMul", ["context", "w_o"], ["output"], name="out_proj"),
+    ]
+
+    def scaled(name: str, shape: tuple[int, ...], std: float) -> TensorProto:
+        return numpy_helper.from_array(
+            (rng.standard_normal(shape) * std).astype(np.float32), name
+        )
+
+    inits = [
+        # Unit-scale embeddings and larger Q/K weights give distinct, peaked
+        # attention per head (tiny weights would make every head near-uniform).
+        scaled("embedding", (VOCAB, MODEL_DIM), 1.0),
+        scaled("w_q", (MODEL_DIM, MODEL_DIM), 0.5),
+        scaled("w_k", (MODEL_DIM, MODEL_DIM), 0.5),
+        scaled("w_v", (MODEL_DIM, MODEL_DIM), 0.25),
+        scaled("w_o", (MODEL_DIM, MODEL_DIM), 0.25),
+        const("split_heads", split),
+        const("merge_shape", [0, 0, MODEL_DIM]),
+        numpy_helper.from_array(np.array(np.sqrt(head_dim), dtype=np.float32), "scale"),
+    ]
+    return _model(
+        "self_attention",
+        nodes,
+        [helper.make_tensor_value_info("ids", i64, ["batch", "seq"])],
+        [
+            helper.make_tensor_value_info(
+                "output", TensorProto.FLOAT, ["batch", "seq", MODEL_DIM]
+            )
+        ],
+        inits,
+    )
+
 
 _OPSET = [helper.make_opsetid("", 17)]
 
@@ -184,4 +288,6 @@ def build_sample(name: str) -> ModelProto | None:
             [helper.make_tensor_value_info("y", f32, ["N", 16, "H", "W"])],
             inits,
         )
+    if name == "attention":
+        return _attention_sample(rng)
     return None

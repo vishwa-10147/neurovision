@@ -2,6 +2,65 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://neurovision.local/schemas/import.schema.json",
   "$defs": {
+    "AttentionCandidate": {
+      "description": "A Softmax over a square [..., S, S] tensor: likely attention weights.\n\nFound by pattern, not by knowing the architecture; the UI says so.",
+      "properties": {
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "tensor": {
+          "title": "Tensor",
+          "type": "string"
+        },
+        "shape": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Shape"
+        },
+        "layout": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Layout",
+          "type": "array"
+        }
+      },
+      "required": [
+        "node_id",
+        "name",
+        "tensor",
+        "shape",
+        "layout"
+      ],
+      "title": "AttentionCandidate",
+      "type": "object"
+    },
     "Capabilities": {
       "additionalProperties": false,
       "description": "What the current model and runtime actually support.",
@@ -285,6 +344,13 @@
             "type": "string"
           },
           "title": "Inference Blockers",
+          "type": "array"
+        },
+        "attention": {
+          "items": {
+            "$ref": "#/$defs/AttentionCandidate"
+          },
+          "title": "Attention",
           "type": "array"
         }
       },

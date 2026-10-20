@@ -9,6 +9,7 @@ from app.schemas.architecture import DenseNetworkConfig
 from app.schemas.events import TrainingStep, training_event_adapter
 from app.schemas.export import SHARED_SCHEMAS_DIR, build_schemas, render
 from app.schemas.graph import ModelGraph
+from app.schemas.inference import TensorGridResponse, TensorMapResponse
 
 EXAMPLES = SHARED_SCHEMAS_DIR / "examples"
 
@@ -20,6 +21,14 @@ def _load(path: Path) -> Any:
 @pytest.mark.parametrize("name", ["dense-network.graph.json", "onnx-import.graph.json"])
 def test_example_graphs_are_valid(name: str) -> None:
     ModelGraph.model_validate(_load(EXAMPLES / name))
+
+
+def test_example_tensor_views_are_valid() -> None:
+    grid = TensorGridResponse.model_validate(_load(EXAMPLES / "attention.grid.json"))
+    detail = TensorMapResponse.model_validate(_load(EXAMPLES / "attention.map.json"))
+    # The detail map is head 1 of the grid, so the two must agree.
+    assert detail.values == grid.items[1].values
+    assert all(sum(row) == pytest.approx(1, abs=1e-5) for row in detail.values)  # type: ignore[arg-type]
 
 
 def test_example_event_is_valid() -> None:

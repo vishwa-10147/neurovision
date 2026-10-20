@@ -16,7 +16,13 @@ from app.schemas.events import training_event_adapter
 from app.schemas.graph import ModelGraph
 from app.schemas.health import HealthResponse
 from app.schemas.imports import ImportResponse
-from app.schemas.inference import RunRequest, RunResponse
+from app.schemas.inference import (
+    RunRequest,
+    RunResponse,
+    TensorGridResponse,
+    TensorMapResponse,
+    TensorViewRequest,
+)
 from app.schemas.runs import EventBatch, RunCreate, RunCreated, RunFinish, RunList
 from app.schemas.training import (
     ForwardRequest,
@@ -77,6 +83,17 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             # One flat $defs, so nested references resolve from the root.
             models_json_schema(
                 [(RunRequest, "validation"), (RunResponse, "serialization")]
+            )[1],
+        ),
+        "tensor-view.schema.json": _with_header(
+            "tensor-view.schema.json",
+            "TensorView",
+            models_json_schema(
+                [
+                    (TensorViewRequest, "validation"),
+                    (TensorMapResponse, "serialization"),
+                    (TensorGridResponse, "serialization"),
+                ]
             )[1],
         ),
         "import.schema.json": _with_header(

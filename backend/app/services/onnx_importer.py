@@ -29,7 +29,12 @@ from app.schemas.graph import (
     ParameterSummary,
     Shape,
 )
-from app.schemas.imports import ImportReport, OpsetImport, UnsupportedOperator
+from app.schemas.imports import (
+    AttentionCandidate,
+    ImportReport,
+    OpsetImport,
+    UnsupportedOperator,
+)
 from app.schemas.inference import SUPPORTED_INPUT_DTYPES, InputSpec
 
 MAX_OPERATORS = 5000
@@ -43,16 +48,65 @@ _PLACEHOLDER = re.compile(r"^unk__\d+$")
 RUNTIME_DOMAINS = {"com.microsoft"}
 
 
-def capabilities_for(runnable: bool) -> Capabilities:
-    """Imported models can always be inspected; running them needs ONNX Runtime."""
+def capabilities_for(runnable: bool, has_attention: bool = False) -> Capabilities:
+    """Imported models can always be inspected; running them needs ONNX Runtime.
+
+    Attention weights can be shown only when the model runs and has likely
+    attention maps (see find_attention).
+    """
     return Capabilities(
         graph=True,
         inference=runnable,
         training=False,
         activations=runnable,
         gradients=False,
-        attention=False,
+        attention=runnable and has_attention,
     )
+
+
+def find_attention(
+    model: ModelProto, shapes: dict[str, Shape], producer: dict[str, str]
+) -> list[AttentionCandidate]:
+    """Softmax nodes over the last axis of a square [..., S, S] tensor.
+
+    That is the pattern of attention weights (each query's distribution over
+    keys). It is a heuristic: other square softmaxes would match, and
+    attention fused into one operator, or with unknown sizes, would not.
+    """
+    opset = next(
+        (o.version for o in model.opset_import if o.domain in ("", "ai.onnx")), 13
+    )
+    candidates: list[AttentionCandidate] = []
+    for op in model.graph.node:
+        if op.op_type != "Softmax" or op.domain not in ("", "ai.onnx") or not op.output:
+            continue
+        shape = shapes.get(op.output[0])
+        if shape is None or len(shape) < 3:
+            continue
+        default_axis = -1 if opset >= 13 else 1
+        axis = next((a.i for a in op.attribute if a.name == "axis"), default_axis)
+        if axis not in (-1, len(shape) - 1):
+            continue
+        query, key = shape[-2], shape[-1]
+        if query is None or key is None or query != key:
+            continue
+        if len(shape) == 4:
+            leading = ["batch", "heads"]
+        elif len(shape) == 3:  # Some exporters merge batch and heads.
+            leading = ["batch × heads"]
+        else:
+            leading = ["dim"] * (len(shape) - 2)
+        layout = [*leading, "query", "key"]
+        candidates.append(
+            AttentionCandidate(
+                node_id=producer[op.output[0]],
+                name=_text(op.name or op.output[0]),
+                tensor=_text(op.output[0]),
+                shape=shape,
+                layout=layout,
+            )
+        )
+    return candidates
 
 
 def runtime_available() -> bool:
@@ -345,6 +399,7 @@ def import_onnx(data: bytes, model_id: str, file_name: str) -> ImportResult:
             f"…and {len(warnings) - MAX_WARNINGS + 1} more warnings.",
         ]
 
+    attention = find_attention(model, shapes, producer)
     unrunnable = sorted(
         op for (op, domain) in unsupported if domain not in RUNTIME_DOMAINS
     )
@@ -370,7 +425,9 @@ def import_onnx(data: bytes, model_id: str, file_name: str) -> ImportResult:
             id=model_id,
             name=name,
             source_format="onnx",
-            capabilities=capabilities_for(runnable=not blockers),
+            capabilities=capabilities_for(
+                runnable=not blockers, has_attention=bool(attention)
+            ),
             metadata={
                 "onnx": {
                     "file_name": _text(file_name),
@@ -407,6 +464,7 @@ def import_onnx(data: bytes, model_id: str, file_name: str) -> ImportResult:
         warnings=warnings,
         inputs=input_specs,
         inference_blockers=blockers,
+        attention=attention,
     )
     return ImportResult(
         graph=model_graph,

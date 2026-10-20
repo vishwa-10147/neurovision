@@ -20,7 +20,10 @@ real trained models.
 >     operator graph in 2D and 3D, its shapes and attributes, and its
 >     weights. **Run it** on inputs you choose in an isolated,
 >     time-limited ONNX Runtime worker to see real outputs and every
->     operator's values. See [docs/importing-onnx.md](docs/importing-onnx.md).
+>     operator's values. After a run, view CNN feature maps channel by
+>     channel, convolution filters, and attention heads as query × key
+>     matrices (attention is detected by pattern, and labeled as such).
+>     See [docs/importing-onnx.md](docs/importing-onnx.md).
 > -   A dashboard with a backend health check, and shared graph, event,
 >     and error contracts.
 >
@@ -249,6 +252,8 @@ compatible.
 | `GET /api/v1/import/onnx/samples`       | List built-in sample models                     |
 | `POST /api/v1/import/onnx/samples/{name}` | Import a sample model                         |
 | `POST /api/v1/models/{model_id}/run`    | Run an imported model in the isolated worker    |
+| `GET /api/v1/models/{model_id}/maps`    | One bounded 2D map of a tensor from a recent run |
+| `GET /api/v1/models/{model_id}/grids`   | Channel or head thumbnails from a recent run    |
 
 Request and response details, limits, and the in-memory storage
 limitation are in [`docs/api.md`](docs/api.md). Design decisions are in
@@ -258,7 +263,8 @@ limitation are in [`docs/api.md`](docs/api.md). Design decisions are in
 [training jobs and event streaming](docs/decisions/0003-training-jobs.md),
 [ONNX import](docs/decisions/0004-onnx-import.md),
 [running imported models](docs/decisions/0005-onnx-runtime-inference.md),
-and [external runs](docs/decisions/0006-external-runs.md). To watch your own
+[external runs](docs/decisions/0006-external-runs.md), and
+[feature-map, attention, and filter views](docs/decisions/0007-tensor-views.md). To watch your own
 PyTorch training live, see [`docs/live-runs.md`](docs/live-runs.md).
 
 Errors from any endpoint use a shared envelope,

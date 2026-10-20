@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.graph import ModelGraph
+from app.schemas.graph import ModelGraph, Shape
 from app.schemas.inference import InputSpec
 
 
@@ -17,6 +17,22 @@ class UnsupportedOperator(BaseModel):
 class OpsetImport(BaseModel):
     domain: str
     version: int
+
+
+class AttentionCandidate(BaseModel):
+    """A Softmax over a square [..., S, S] tensor: likely attention weights.
+
+    Found by pattern, not by knowing the architecture; the UI says so.
+    """
+
+    node_id: str
+    # The operator's name, for display.
+    name: str
+    # The Softmax output tensor holding the weights (what a run reports).
+    tensor: str
+    shape: Shape
+    # Guessed role of each dimension, e.g. ["batch", "heads", "query", "key"].
+    layout: list[str]
 
 
 class ImportReport(BaseModel):
@@ -37,6 +53,7 @@ class ImportReport(BaseModel):
     inputs: list[InputSpec] = Field(default_factory=list)
     # Why the model cannot be run here; empty when it is expected to run.
     inference_blockers: list[str] = Field(default_factory=list)
+    attention: list[AttentionCandidate] = Field(default_factory=list)
 
 
 class ImportResponse(BaseModel):

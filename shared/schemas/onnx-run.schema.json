@@ -56,6 +56,37 @@
       "title": "RunInput",
       "type": "object"
     },
+    "RunInputShape": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        },
+        "shape": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Shape",
+          "type": "array"
+        },
+        "dtype": {
+          "title": "Dtype",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "node_id",
+        "shape",
+        "dtype"
+      ],
+      "title": "RunInputShape",
+      "type": "object"
+    },
     "RunRequest": {
       "additionalProperties": false,
       "properties": {
@@ -96,6 +127,21 @@
           "title": "Model Id",
           "type": "string"
         },
+        "inputs": {
+          "items": {
+            "$ref": "#/$defs/RunInputShape"
+          },
+          "title": "Inputs",
+          "type": "array"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "retained": {
+          "title": "Retained",
+          "type": "boolean"
+        },
         "runtime": {
           "title": "Runtime",
           "type": "string"
@@ -128,6 +174,8 @@
       },
       "required": [
         "model_id",
+        "run_id",
+        "retained",
         "runtime",
         "elapsed_ms",
         "outputs",

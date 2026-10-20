@@ -29,7 +29,21 @@ export const ImportReportSchema = z.object({
   inputs: z.array(InputSpecSchema).default([]),
   /** Why the model cannot run here; empty when it is expected to run. */
   inference_blockers: z.array(z.string()).default([]),
+  /** Softmax nodes over square [..., S, S] tensors: likely attention weights. */
+  attention: z
+    .array(
+      z.object({
+        node_id: z.string(),
+        name: z.string(),
+        /** The Softmax output tensor, as named in run results. */
+        tensor: z.string(),
+        shape: z.array(z.union([z.number().int(), z.string(), z.null()])).nullable(),
+        layout: z.array(z.string()),
+      }),
+    )
+    .default([]),
 })
+export type AttentionCandidate = ImportReport['attention'][number]
 export type ImportReport = z.infer<typeof ImportReportSchema>
 
 /** Mirrors backend/app/schemas/inference.py (shared/schemas/onnx-run.schema.json). */
@@ -59,6 +73,13 @@ export type TensorValues = z.infer<typeof TensorValuesSchema>
 
 export const RunResponseSchema = z.object({
   model_id: z.string(),
+  /** Identifies this run's kept tensors for map views. */
+  run_id: z.string(),
+  /** False when the tensors were too large to keep (no map views). */
+  retained: z.boolean(),
+  inputs: z
+    .array(z.object({ name: z.string(), node_id: z.string(), shape: z.array(z.number().int()), dtype: z.string() }))
+    .default([]),
   runtime: z.string(),
   elapsed_ms: z.number(),
   outputs: z.array(TensorValuesSchema),

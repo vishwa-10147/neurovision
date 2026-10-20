@@ -14,6 +14,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+from uuid import uuid4
 
 import numpy as np
 import onnx
@@ -24,9 +25,11 @@ from app.schemas.inference import (
     MAX_AUTO_CAPTURE,
     MAX_INPUT_ELEMENTS,
     SUPPORTED_INPUT_DTYPES,
+    RunInputShape,
     RunRequest,
     RunResponse,
     TensorValues,
+    TensorViewRequest,
 )
 from app.schemas.training import MAX_TENSOR_VALUES
 from app.services.model_repository import ImportedModelRecord
@@ -51,6 +54,14 @@ class InferenceFailed(Exception):
 
 class WorkerBusy(Exception):
     pass
+
+
+class RunGone(Exception):
+    """The run's tensors are no longer retained (evicted or worker restarted)."""
+
+
+class ViewRejected(Exception):
+    """The map request does not fit the tensor; the message is client-safe."""
 
 
 class OnnxRuntimeService:
@@ -112,8 +123,48 @@ class OnnxRuntimeService:
                     pass
             self._kill()
 
+    def view(
+        self,
+        kind: str,
+        run_id: str,
+        tensor: str,
+        fixed: list[int],
+        limits: dict[str, int],
+    ) -> dict[str, Any]:
+        """A 2D map ("map") or thumbnail grid ("grid") of a retained tensor."""
+        if not self._lock.acquire(timeout=self.timeout_s):
+            raise WorkerBusy
+        try:
+            # A new worker holds no runs: the requested one is gone.
+            if self._process is None or not self._process.is_alive():
+                raise RunGone
+            self._conn.send((kind, run_id, tensor, fixed, limits))
+            if not self._wait(self.timeout_s):
+                self._kill()
+                raise InferenceTimeout
+            status, result = self._conn.recv()
+            if status == "gone":
+                raise RunGone
+            if status == "bad_request":
+                raise ViewRejected(result)
+            if status == "error":
+                raise InferenceFailed(result)
+            return dict(result)
+        except InferenceCrashed:
+            self._kill()
+            raise
+        except (EOFError, BrokenPipeError, ConnectionResetError, OSError) as error:
+            self._kill()
+            raise InferenceCrashed(str(error)) from error
+        finally:
+            self._lock.release()
+
     def run(
-        self, key: str, model_bytes: Callable[[], bytes], feeds: dict[str, np.ndarray]
+        self,
+        key: str,
+        model_bytes: Callable[[], bytes],
+        feeds: dict[str, np.ndarray],
+        run_id: str,
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """Summaries of every output, plus timings measured in the worker."""
         # One run at a time; a second caller waits briefly, then gets "busy".
@@ -127,7 +178,7 @@ class OnnxRuntimeService:
                 started_worker = True
             payload = None if key in self._loaded else model_bytes()
             for _attempt in range(2):
-                self._conn.send(("run", key, payload, feeds, MAX_TENSOR_VALUES))
+                self._conn.send(("run", key, payload, feeds, MAX_TENSOR_VALUES, run_id))
                 if not self._wait(self.timeout_s):
                     self._kill()
                     raise InferenceTimeout
@@ -292,11 +343,13 @@ def execute(
     service: OnnxRuntimeService, record: ImportedModelRecord, request: RunRequest
 ) -> RunResponse:
     prepared = prepare_run(record, request)
+    run_id = f"run_{uuid4().hex[:12]}"
     try:
         results, timings = service.run(
             variant_key(record, prepared.capture),
             lambda: build_variant(record, prepared.capture),
             prepared.feeds,
+            run_id,
         )
     except InferenceTimeout as error:
         raise ApiError(
@@ -332,6 +385,10 @@ def execute(
         )
     if timings["started_worker"]:
         notes.append("This run also started the inference worker process.")
+    if not timings["retained"]:
+        notes.append(
+            "This run's tensors are too large to keep, so 2D map views are unavailable for it."
+        )
 
     graph_outputs = [o for o in record.graph.nodes if o.op_type == "Output"]
     output_names = {n.input_tensors[0] for n in graph_outputs if n.input_tensors}
@@ -340,6 +397,17 @@ def execute(
     ]
     return RunResponse(
         model_id=record.model_id,
+        inputs=[
+            RunInputShape(
+                name=spec.name,
+                node_id=spec.node_id,
+                shape=list(prepared.feeds[spec.name].shape),
+                dtype=str(prepared.feeds[spec.name].dtype),
+            )
+            for spec in record.inputs
+        ],
+        run_id=run_id,
+        retained=bool(timings["retained"]),
         runtime=f"onnxruntime {service.version}",
         # Model execution only, measured inside the worker.
         elapsed_ms=round(timings["run_ms"], 3),
@@ -347,3 +415,70 @@ def execute(
         intermediates=[v for v in values if v.name not in output_names],
         notes=notes,
     )
+
+
+MAX_MAP_CELLS = 65_536
+MAX_GRID_ITEMS = 256
+THUMB_CELLS = 24 * 24
+
+
+def node_tensors(record: ImportedModelRecord, node_id: str) -> list[str]:
+    """Raw names of the tensors a node produces, in output order."""
+    return [
+        tensor for tensor, producer in record.producers.items() if producer == node_id
+    ]
+
+
+def view_tensor(
+    service: OnnxRuntimeService,
+    record: ImportedModelRecord,
+    kind: str,
+    request: TensorViewRequest,
+) -> dict[str, Any]:
+    """A bounded 2D map or thumbnail grid of one tensor from a retained run."""
+    outputs = node_tensors(record, request.node_id)
+    if not outputs:
+        raise invalid(
+            "query.node_id",
+            f"'{request.node_id}' is not a node with outputs in this model.",
+        )
+    if request.output >= len(outputs):
+        raise invalid(
+            "query.output", f"'{request.node_id}' has {len(outputs)} output(s)."
+        )
+    tensor = outputs[request.output]
+    limits = {
+        "max_cells": MAX_MAP_CELLS,
+        "max_items": MAX_GRID_ITEMS,
+        "thumb_cells": THUMB_CELLS,
+    }
+    try:
+        result = service.view(kind, request.run_id, tensor, request.fixed, limits)
+    except RunGone as error:
+        raise ApiError(
+            410,
+            "run_expired",
+            "That run's values are no longer kept (newer runs replaced them, or the worker restarted). "
+            "Run the model again.",
+        ) from error
+    except ViewRejected as error:
+        raise invalid("query.fixed", str(error)) from error
+    except InferenceTimeout as error:
+        raise ApiError(
+            504, "inference_timeout", "Preparing the view took too long."
+        ) from error
+    except WorkerBusy as error:
+        raise ApiError(
+            429, "too_many_requests", "The model is busy. Try again in a moment."
+        ) from error
+    except (InferenceCrashed, InferenceFailed) as error:
+        raise ApiError(
+            500, "inference_crashed", "The inference worker could not prepare the view."
+        ) from error
+    return {
+        "model_id": record.model_id,
+        "run_id": request.run_id,
+        "node_id": request.node_id,
+        "tensor": tensor,
+        **result,
+    }

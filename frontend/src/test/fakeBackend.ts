@@ -7,10 +7,11 @@ import { vi } from 'vitest'
 import type { DenseNetworkConfig } from '../types/architecture'
 import { denseGraph } from './denseGraph'
 
-export type Route = (method: string, path: string, body: unknown) => Response | undefined
+export type Route = (method: string, path: string, body: unknown, params: URLSearchParams) => Response | undefined
 
 export interface FakeBackend {
-  calls: { method: string; path: string; body: unknown; query: Record<string, string> }[]
+  /** `query` keeps the last value of each key; `params` keeps repeats (e.g. `fixed`). */
+  calls: { method: string; path: string; body: unknown; query: Record<string, string>; params: URLSearchParams }[]
   /** Routes checked before the defaults; return undefined to fall through. */
   use: (route: Route) => void
 }
@@ -30,9 +31,9 @@ export function fakeBackend(): FakeBackend {
       const method = init?.method ?? 'GET'
       // JSON bodies are decoded; raw uploads (Blob/File) are kept as-is.
       const body = typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body
-      calls.push({ method, path, body, query: Object.fromEntries(parsed.searchParams) })
+      calls.push({ method, path, body, query: Object.fromEntries(parsed.searchParams), params: parsed.searchParams })
       for (const route of routes) {
-        const response = route(method, path, body)
+        const response = route(method, path, body, parsed.searchParams)
         if (response) return response
       }
       if (method === 'POST' && path === '/models/educational') {

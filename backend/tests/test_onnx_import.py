@@ -277,7 +277,7 @@ class TestImportApi:
 
     def test_sample_list_and_unknown_sample(self, client: TestClient) -> None:
         names = [s["name"] for s in client.get("/api/v1/import/onnx/samples").json()]
-        assert names == ["mlp", "cnn", "residual", "custom-op"]
+        assert names == ["mlp", "cnn", "residual", "custom-op", "attention"]
         assert client.post("/api/v1/import/onnx/samples/nope").status_code == 404
 
     def test_imported_models_cannot_run_or_train(self, client: TestClient) -> None:
