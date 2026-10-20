@@ -59,7 +59,13 @@ async def _import(
         ImportedModelRecord(
             graph=result.graph,
             initializers=result.initializers,
-            size_bytes=len(data),
+            model_bytes=data,
+            inputs=result.inputs,
+            producers=result.producers,
+            blockers=result.blockers,
+            operator_count=result.report.operator_count,
+            # The bytes plus parsed tensors held in memory, roughly twice the file.
+            size_bytes=2 * len(data),
         )
     )
     return ImportResponse(model_id=model_id, graph=result.graph, report=result.report)

@@ -3,6 +3,7 @@ import { SECTIONS, type SectionId } from './app/sections'
 import { HealthIndicator } from './components/HealthIndicator'
 import { ArchitectureStudio } from './features/architecture-studio/ArchitectureStudio'
 import { Dashboard } from './features/dashboard/Dashboard'
+import { LiveRuns } from './features/live-runs/LiveRuns'
 import { ModelExplorer } from './features/model-import/ModelExplorer'
 import { PlannedSection } from './features/planned/PlannedSection'
 import { TrainingLab } from './features/training-lab/TrainingLab'
@@ -44,6 +45,8 @@ export default function App() {
           <ArchitectureStudio />
         ) : section.id === 'training' ? (
           <TrainingLab onOpenStudio={() => setActive('studio')} />
+        ) : section.id === 'runs' ? (
+          <LiveRuns />
         ) : section.id === 'explorer' ? (
           <ModelExplorer />
         ) : (

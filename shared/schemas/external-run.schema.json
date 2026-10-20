@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://neurovision.local/schemas/external-run.schema.json",
+  "$defs": {
+    "EventBatch": {
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "items": {
+            "$ref": "#/$defs/LoggedStep"
+          },
+          "maxItems": 32,
+          "title": "Events",
+          "type": "array"
+        }
+      },
+      "required": [
+        "events"
+      ],
+      "title": "EventBatch",
+      "type": "object"
+    },
+    "LoggedStep": {
+      "additionalProperties": false,
+      "description": "One training.step without the fields the server stamps itself.",
+      "properties": {
+        "epoch": {
+          "minimum": 0,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "step": {
+          "minimum": 0,
+          "title": "Step",
+          "type": "integer"
+        },
+        "metrics": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "maxProperties": 16,
+          "title": "Metrics",
+          "type": "object"
+        },
+        "selected_activations": {
+          "additionalProperties": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 256,
+            "type": "array"
+          },
+          "maxProperties": 8,
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Selected Activations",
+          "type": "object"
+        }
+      },
+      "required": [
+        "epoch",
+        "step",
+        "metrics"
+      ],
+      "title": "LoggedStep",
+      "type": "object"
+    },
+    "RunCreate": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "total_epochs": {
+          "maximum": 1000000,
+          "minimum": 1,
+          "title": "Total Epochs",
+          "type": "integer"
+        },
+        "model_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Id"
+        }
+      },
+      "required": [
+        "name",
+        "total_epochs"
+      ],
+      "title": "RunCreate",
+      "type": "object"
+    },
+    "RunCreated": {
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/RunInfo"
+        },
+        "write_token": {
+          "title": "Write Token",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run",
+        "write_token"
+      ],
+      "title": "RunCreated",
+      "type": "object"
+    },
+    "RunFinish": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "RunFinish",
+      "type": "object"
+    },
+    "RunInfo": {
+      "properties": {
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "model_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Model Id"
+        },
+        "status": {
+          "enum": [
+            "running",
+            "completed",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "total_epochs": {
+          "title": "Total Epochs",
+          "type": "integer"
+        },
+        "epoch": {
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "step": {
+          "title": "Step",
+          "type": "integer"
+        },
+        "steps_logged": {
+          "title": "Steps Logged",
+          "type": "integer"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "number"
+        },
+        "last_event_at": {
+          "title": "Last Event At",
+          "type": "number"
+        }
+      },
+      "required": [
+        "run_id",
+        "name",
+        "model_id",
+        "status",
+        "total_epochs",
+        "epoch",
+        "step",
+        "steps_logged",
+        "created_at",
+        "last_event_at"
+      ],
+      "title": "RunInfo",
+      "type": "object"
+    },
+    "RunList": {
+      "properties": {
+        "runs": {
+          "items": {
+            "$ref": "#/$defs/RunInfo"
+          },
+          "title": "Runs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "runs"
+      ],
+      "title": "RunList",
+      "type": "object"
+    }
+  },
+  "title": "ExternalRun"
+}

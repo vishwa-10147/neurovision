@@ -3,6 +3,7 @@ import { lazy, Suspense, useMemo, useState } from 'react'
 import { ErrorBoundary } from '../../components/states/ErrorBoundary'
 import { ErrorState, LoadingState } from '../../components/states/StateViews'
 import { useModelView } from '../../app/modelView'
+import { rmsFromSummary } from '../../lib/values'
 import type { ModelGraph } from '../../types/graph'
 import { Network2D } from '../visualization-2d/Network2D'
 import { hasWebGL } from '../visualization-3d/environment'
@@ -13,7 +14,7 @@ const Network3D = lazy(() => import('../visualization-3d/Network3D'))
 
 /** Switches between the 2D and 3D renderers; both read the same graph and selection. */
 export function GraphView({ graph, overlay }: { graph: ModelGraph; overlay: string | null }) {
-  const { viewMode, setViewMode, forward } = useModelView()
+  const { viewMode, setViewMode, forward, runValues } = useModelView()
   const [webgl] = useState(hasWebGL)
   // First (only) example's post-activation values for each layer.
   const activations = useMemo(
@@ -23,6 +24,15 @@ export function GraphView({ graph, overlay }: { graph: ModelGraph; overlay: stri
         : null,
     [forward],
   )
+  // Imported models: one magnitude per operator, from its first output in the last run.
+  const blockValues = useMemo(() => {
+    if (!runValues) return null
+    const entries = Object.entries(runValues).flatMap(([id, tensors]) => {
+      const rms = rmsFromSummary(tensors[0]?.summary ?? null)
+      return rms === null ? [] : [[id, rms] as const]
+    })
+    return Object.fromEntries(entries)
+  }, [runValues])
 
   return (
     <div className="graph-view">
@@ -37,7 +47,7 @@ export function GraphView({ graph, overlay }: { graph: ModelGraph; overlay: stri
         </button>
       </div>
       {viewMode === '2d' ? (
-        <Network2D graph={graph} overlay={overlay} activations={activations} />
+        <Network2D graph={graph} overlay={overlay} activations={activations} blockValues={blockValues} />
       ) : !webgl || graph.nodes.length > MAX_3D_NODES ? (
         <div className="graph-view-fallback">
           <ErrorState

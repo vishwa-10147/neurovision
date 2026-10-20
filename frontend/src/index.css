@@ -282,6 +282,26 @@ code {
   background: linear-gradient(to right, var(--act-neg), var(--act-zero), var(--act-pos));
 }
 .unit.has-value { stroke: var(--bg); }
+.activation-scale-positive { background: linear-gradient(to right, var(--act-zero), var(--act-pos)); }
+
+/* Running imported models */
+.run-panel p { margin: 0; }
+.run-input { border: 1px solid var(--border) !important; border-radius: 8px; padding: 0.5rem !important; }
+.run-input legend { padding: 0 0.3rem; }
+.dims { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.dim { display: grid; gap: 0.1rem; font-size: 0.75rem; width: 4.5rem; }
+.dim input, .run-input textarea {
+  width: 100%;
+  padding: 0.25rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+.dim input:disabled { opacity: 0.6; }
+.run-results { display: grid; gap: 0.4rem; font-size: 0.9rem; }
 
 /* Model Explorer */
 .upload-panel, .import-report { align-content: start; }
@@ -362,6 +382,42 @@ code {
 .strip { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: 0.5rem; align-items: center; font-size: 0.85rem; }
 .strip-cells { display: flex; flex-wrap: wrap; gap: 2px; }
 .strip-cells span { width: 16px; height: 16px; border-radius: 3px; }
+
+/* Live runs */
+.run-list { display: grid; gap: 0.6rem; align-content: start; }
+.run-list-title, .run-title, .getting-started h2 { margin: 0; font-size: 1rem; }
+.run-list ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.run-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem 0.5rem;
+  align-items: center;
+  text-align: left;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.run-item:hover { border-color: var(--accent); }
+.run-item[aria-pressed='true'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--surface-2)); }
+.run-name { font-weight: 600; overflow-wrap: anywhere; }
+.run-meta { grid-column: 1 / -1; font-size: 0.8rem; }
+.getting-started { display: grid; gap: 0.6rem; }
+.getting-started p { margin: 0; }
+.code-block {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 8px;
+  background: var(--surface-2);
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.code-block code { background: none; padding: 0; }
 
 .editor, .inspector, .forward-panel {
   background: var(--surface);

@@ -6,7 +6,7 @@ import { useTensor } from '../../hooks/useTensor'
 import { formatShape } from '../../lib/graph'
 import { formatValue } from '../../lib/values'
 import type { GraphEdge, GraphNode } from '../../types/graph'
-import { InitializerRefSchema, type InitializerRef } from '../../types/imports'
+import { InitializerRefSchema, type InitializerRef, type TensorValues } from '../../types/imports'
 
 const PREVIEW_VALUES = 12
 const MAX_ATTRIBUTE_TEXT = 160
@@ -18,6 +18,7 @@ export function OperatorDetails({ node }: { node: GraphNode }) {
   const weights = new Set(initializers.map((i) => i.name))
   const attributes = Object.entries(node.attributes)
   const io = node.op_type === 'Input' || node.op_type === 'Output'
+  const measured = useModelView().runValues?.[node.id] ?? []
 
   return (
     <section aria-label={`Operator ${node.name}`}>
@@ -61,6 +62,14 @@ export function OperatorDetails({ node }: { node: GraphNode }) {
         )}
         {typeof onnx.doc === 'string' && onnx.doc && <Fact label="Documentation">{onnx.doc}</Fact>}
       </dl>
+      {measured.length > 0 && (
+        <div className="initializers" aria-label="Output in the last run">
+          <h4>Output in the last run</h4>
+          {measured.map((tensor) => (
+            <MeasuredTensor key={tensor.name} tensor={tensor} />
+          ))}
+        </div>
+      )}
       {initializers.length > 0 && (
         <div className="initializers">
           <h4>Weights and constants</h4>
@@ -77,6 +86,8 @@ export function OperatorDetails({ node }: { node: GraphNode }) {
 export function TensorEdgeDetails({ edge, source, target }: { edge: GraphEdge; source: GraphNode; target: GraphNode }) {
   const index = edge.tensor_name ? source.output_tensors.indexOf(edge.tensor_name) : -1
   const shape = index >= 0 ? source.output_shapes[index] : undefined
+  const { runValues } = useModelView()
+  const measured = runValues?.[source.id]?.find((t) => t.name === edge.tensor_name)
   return (
     <section aria-label="Tensor">
       <p className="inspector-kind">Tensor</p>
@@ -89,9 +100,52 @@ export function TensorEdgeDetails({ edge, source, target }: { edge: GraphEdge; s
           {target.op_type} <span className="muted mono">{target.name}</span>
         </Fact>
         <Fact label="Shape">{shape === undefined ? 'unknown' : formatShape(shape)}</Fact>
-        <Fact label="Values">Not computed: imported models are shown for inspection only.</Fact>
+        {!measured && (
+          <Fact label="Values">
+            {runValues ? 'Not captured in the last run.' : 'Not computed yet. Run the model to see this tensor.'}
+          </Fact>
+        )}
       </dl>
+      {measured && (
+        <div className="initializers" aria-label="Values in the last run">
+          <h4>Values in the last run</h4>
+          <MeasuredTensor tensor={measured} />
+        </div>
+      )}
     </section>
+  )
+}
+
+/** A tensor measured in the last run: its real shape, summary, and first values. */
+function MeasuredTensor({ tensor }: { tensor: TensorValues }) {
+  const s = tensor.summary
+  return (
+    <div className="initializer">
+      <p>
+        <span className="mono">{tensor.name}</span>{' '}
+        <span className="muted">
+          {formatShape(tensor.shape)} {tensor.dtype} · {tensor.count.toLocaleString()} values
+        </span>
+      </p>
+      {s ? (
+        <p className="mono">
+          min {formatValue(s.min, 4)}, max {formatValue(s.max, 4)}, mean {formatValue(s.mean, 4)}, std{' '}
+          {formatValue(s.std, 4)}
+        </p>
+      ) : (
+        <p className="muted">No finite values.</p>
+      )}
+      {tensor.non_finite_count > 0 && (
+        <p className="inspector-warning">{tensor.non_finite_count.toLocaleString()} values are NaN or infinite.</p>
+      )}
+      <p className="mono">
+        {tensor.values
+          .slice(0, PREVIEW_VALUES)
+          .map((v) => (v === null ? 'NaN/∞' : formatValue(v, 4)))
+          .join(', ')}
+        {tensor.count > PREVIEW_VALUES ? ', …' : ''}
+      </p>
+    </div>
   )
 }
 

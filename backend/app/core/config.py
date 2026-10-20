@@ -15,8 +15,14 @@ class Settings(BaseSettings):
     environment: str = "development"
     # Training jobs that may run at once; more are rejected with 429.
     max_training_jobs: int = 2
+    # External runs (user scripts streaming in) that may be active at once.
+    max_external_runs: int = 8
     # Largest model file accepted for import.
     max_upload_bytes: int = 64 * 1024 * 1024
+    # Running imported models: wall-clock limit per run, and the worker's
+    # memory cap (enforced on Linux/macOS; not available on Windows).
+    inference_timeout_seconds: float = 10.0
+    inference_max_memory_bytes: int = 2 * 1024 * 1024 * 1024
     # Comma-separated list in the environment, e.g.
     # NEUROVISION_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
     cors_origins: Annotated[list[str], NoDecode] = [

@@ -15,6 +15,6 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "../sdk"]
 # Fail instead of hanging if a training job or WebSocket never finishes.
 timeout = 60

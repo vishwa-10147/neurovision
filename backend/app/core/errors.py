@@ -16,6 +16,8 @@ logger = logging.getLogger("neurovision.api")
 
 _CODES = {
     400: "bad_request",
+    401: "unauthorized",
+    403: "forbidden",
     404: "not_found",
     405: "method_not_allowed",
     409: "conflict",

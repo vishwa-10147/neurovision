@@ -1,6 +1,6 @@
-import { Activity, BookOpen, Boxes, LayoutDashboard, Network, type LucideIcon } from 'lucide-react'
+import { Activity, BookOpen, Boxes, LayoutDashboard, Network, Radio, type LucideIcon } from 'lucide-react'
 
-export type SectionId = 'dashboard' | 'studio' | 'training' | 'explorer' | 'learning'
+export type SectionId = 'dashboard' | 'studio' | 'training' | 'runs' | 'explorer' | 'learning'
 
 export interface Section {
   id: SectionId
@@ -32,6 +32,13 @@ export const SECTIONS: Section[] = [
     icon: Activity,
     milestone: null,
     summary: 'Train PyTorch networks and watch real loss, accuracy, and activations.',
+  },
+  {
+    id: 'runs',
+    label: 'Live runs',
+    icon: Radio,
+    milestone: null,
+    summary: 'Watch your own PyTorch training scripts stream metrics and activations.',
   },
   {
     id: 'explorer',

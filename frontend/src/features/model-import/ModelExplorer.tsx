@@ -2,17 +2,19 @@ import { useMemo } from 'react'
 import { ModelViewContext, type ModelView } from '../../app/modelView'
 import { Inspector } from '../../components/inspector/Inspector'
 import { EmptyState } from '../../components/states/StateViews'
-import { useExplorerStore } from '../../stores/explorerStore'
+import { runValuesByNode, useExplorerStore } from '../../stores/explorerStore'
 import { GraphView } from '../architecture-studio/GraphView'
 import { ImportReportPanel } from './ImportReportPanel'
+import { RunPanel } from './RunPanel'
 import { UploadPanel } from './UploadPanel'
 
 export function ModelExplorer() {
-  const { modelId, graph, report, selection, viewMode, select, setViewMode, setImported } = useExplorerStore()
-  // Imported models never run, so there are no measured values or weight changes.
+  const { modelId, graph, report, selection, viewMode, select, setViewMode, setImported, run } = useExplorerStore()
+  const runValues = useMemo(() => runValuesByNode(run), [run])
+  // Imported weights never change, so the weights version stays 0.
   const view = useMemo<ModelView>(
-    () => ({ modelId, weightsVersion: 0, forward: null, selection, select, viewMode, setViewMode }),
-    [modelId, selection, select, viewMode, setViewMode],
+    () => ({ modelId, weightsVersion: 0, forward: null, selection, select, viewMode, setViewMode, runValues }),
+    [modelId, selection, select, viewMode, setViewMode, runValues],
   )
 
   return (
@@ -20,7 +22,7 @@ export function ModelExplorer() {
       <section aria-labelledby="explorer-title" className="studio">
         <header className="studio-header">
           <h1 id="explorer-title">Model Explorer</h1>
-          <p className="muted">Inspect the structure and weights of trained ONNX models.</p>
+          <p className="muted">Inspect and run trained ONNX models.</p>
         </header>
         <div className="studio-grid">
           <div className="studio-side">
@@ -39,7 +41,11 @@ export function ModelExplorer() {
               </div>
             )}
           </div>
-          <Inspector graph={graph} />
+          <div className="studio-side">
+            {/* Keyed by model, so input drafts start fresh for each import. */}
+            {modelId && report && <RunPanel key={modelId} modelId={modelId} report={report} />}
+            <Inspector graph={graph} />
+          </div>
         </div>
       </section>
     </ModelViewContext.Provider>

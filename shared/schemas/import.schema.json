@@ -272,6 +272,20 @@
           },
           "title": "Warnings",
           "type": "array"
+        },
+        "inputs": {
+          "items": {
+            "$ref": "#/$defs/InputSpec"
+          },
+          "title": "Inputs",
+          "type": "array"
+        },
+        "inference_blockers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Inference Blockers",
+          "type": "array"
         }
       },
       "required": [
@@ -284,6 +298,57 @@
         "external_tensor_count"
       ],
       "title": "ImportReport",
+      "type": "object"
+    },
+    "InputSpec": {
+      "description": "A graph input the model expects, as declared in the file.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        },
+        "dtype": {
+          "title": "Dtype",
+          "type": "string"
+        },
+        "shape": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Shape"
+        }
+      },
+      "required": [
+        "name",
+        "node_id",
+        "dtype",
+        "shape"
+      ],
+      "title": "InputSpec",
       "type": "object"
     },
     "JsonValue": {},

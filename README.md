@@ -18,13 +18,13 @@ real trained models.
 > -   **Model Explorer**: import a trained ONNX model (e.g. exported from
 >     your own PyTorch project) or a built-in sample, and inspect its
 >     operator graph in 2D and 3D, its shapes and attributes, and its
->     weights. Files are parsed safely for inspection and never run. See
->     [docs/importing-onnx.md](docs/importing-onnx.md).
+>     weights. **Run it** on inputs you choose in an isolated,
+>     time-limited ONNX Runtime worker to see real outputs and every
+>     operator's values. See [docs/importing-onnx.md](docs/importing-onnx.md).
 > -   A dashboard with a backend health check, and shared graph, event,
 >     and error contracts.
 >
-> Learning Mode is shown in the UI as "planned", and running imported
-> models arrives in Milestone 6. The 3D view needs WebGL. Features
+> Learning Mode is shown in the UI as "planned". The 3D view needs WebGL. Features
 > described as planned are not considered implemented until their code
 > and tests exist.
 
@@ -71,7 +71,7 @@ model can be viewed in 2D and 3D.
 -   Python 3.12
 -   FastAPI, Pydantic, Uvicorn
 -   PyTorch, NumPy
--   ONNX; ONNX Runtime when inference support is implemented
+-   ONNX, and ONNX Runtime (in an isolated worker process)
 -   WebSockets
 -   Pytest, HTTPX, Ruff
 
@@ -114,9 +114,9 @@ git --version
 ## Setup on Windows PowerShell
 
 The commands below were verified on Windows 11 with Node.js 24,
-Python 3.12.10, the CPU build of PyTorch 2.14.1, and onnx 1.23.2. Only
-the dependencies the implemented features need are installed; ONNX
-Runtime and React Flow are added in the milestones that use them.
+Python 3.12.10, the CPU build of PyTorch 2.14.1, onnx 1.23.2, and
+onnxruntime 1.31.0. Only the dependencies the implemented features need
+are installed; React Flow is added when free-form editing needs it.
 
 ### 1. Backend
 
@@ -240,10 +240,15 @@ compatible.
 | `GET /api/v1/models/{model_id}/metrics` | Latest job and per-epoch metrics                |
 | `GET /api/v1/training/{job_id}`         | Job status                                      |
 | `POST /api/v1/training/{job_id}/cancel` | Cancel a job                                    |
-| `WS /api/v1/training/{job_id}/events`   | Replayed and live training events               |
+| `WS /api/v1/training/{job_id}/events`   | Replayed and live training events (jobs and external runs) |
+| `POST /api/v1/runs`                     | Start an external run from your own script      |
+| `POST /api/v1/runs/{run_id}/events`     | Log a batch of steps (write token required)     |
+| `POST /api/v1/runs/{run_id}/finish`     | Mark an external run completed or failed        |
+| `GET /api/v1/runs`                      | List external runs                              |
 | `POST /api/v1/import/onnx?filename=…`   | Import an ONNX file (raw body) for inspection   |
 | `GET /api/v1/import/onnx/samples`       | List built-in sample models                     |
 | `POST /api/v1/import/onnx/samples/{name}` | Import a sample model                         |
+| `POST /api/v1/models/{model_id}/run`    | Run an imported model in the isolated worker    |
 
 Request and response details, limits, and the in-memory storage
 limitation are in [`docs/api.md`](docs/api.md). Design decisions are in
@@ -251,7 +256,10 @@ limitation are in [`docs/api.md`](docs/api.md). Design decisions are in
 [2D renderer](docs/decisions/0001-2d-renderer.md), the
 [3D renderer](docs/decisions/0002-3d-renderer.md),
 [training jobs and event streaming](docs/decisions/0003-training-jobs.md),
-and [ONNX import](docs/decisions/0004-onnx-import.md).
+[ONNX import](docs/decisions/0004-onnx-import.md),
+[running imported models](docs/decisions/0005-onnx-runtime-inference.md),
+and [external runs](docs/decisions/0006-external-runs.md). To watch your own
+PyTorch training live, see [`docs/live-runs.md`](docs/live-runs.md).
 
 Errors from any endpoint use a shared envelope,
 `{"error": {"code", "message", "details"}}`. The model graph, training

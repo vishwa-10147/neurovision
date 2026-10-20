@@ -17,9 +17,12 @@ interface Network2DProps {
   overlay?: string | null
   /** Measured post-activation values per layer from a forward pass, if any. */
   activations?: Record<string, number[]> | null
+  /** Imported models: one measured magnitude per operator from the last run. */
+  blockValues?: Record<string, number> | null
 }
 
-export function Network2D({ graph, overlay, activations }: Network2DProps) {
+export function Network2D({ graph, overlay, activations, blockValues }: Network2DProps) {
+  const blockMax = blockValues ? Math.max(0, ...Object.values(blockValues)) : 0
   const layout = useMemo(() => computeLayout(graph), [graph])
   const { selection, select } = useModelView()
   const svgRef = useRef<SVGSVGElement>(null)
@@ -86,6 +89,8 @@ export function Network2D({ graph, overlay, activations }: Network2DProps) {
               chooseIf={chooseIf}
               onSelectLayer={select}
               values={activations?.[layer.nodeId] ?? null}
+              blockValue={blockValues?.[layer.nodeId] ?? null}
+              blockMax={blockMax}
             />
           ))}
         </g>
@@ -96,7 +101,7 @@ export function Network2D({ graph, overlay, activations }: Network2DProps) {
       {showsUnits(graph) ? (
         <Legend aggregated={aggregated} connectionCount={layout.connectionCount} showsActivations={Boolean(activations)} />
       ) : (
-        <OperatorLegend graph={graph} />
+        <OperatorLegend graph={graph} measured={Boolean(blockValues && Object.keys(blockValues).length)} />
       )}
     </div>
   )
@@ -110,13 +115,18 @@ function Layer({
   chooseIf,
   onSelectLayer,
   values,
+  blockValue = null,
+  blockMax = 0,
 }: {
   layer: LayerLayout
   selection: Selection
   chooseIf: ChooseIf
   onSelectLayer: (s: Selection) => void
   values: number[] | null
+  blockValue?: number | null
+  blockMax?: number
 }) {
+  const shaded = !layer.units && blockValue !== null
   const maxAbs = values ? Math.max(0, ...values.map(Math.abs)) : 0
   const layerSelected = selection?.kind === 'layer' && selection.nodeId === layer.nodeId
   const selectedUnit = selection?.kind === 'unit' && selection.nodeId === layer.nodeId ? selection.index : null
@@ -151,8 +161,12 @@ function Layer({
         width={(UNIT_RADIUS + 12) * 2}
         height={layer.bottom - layer.top}
         rx={14}
+        data-value={shaded ? blockValue : undefined}
+        style={shaded ? { fill: activationFill(blockValue, blockMax) } : undefined}
         onClick={chooseIf({ kind: 'layer', nodeId: layer.nodeId })}
-      />
+      >
+        {shaded && <title>{`${layer.label}: output RMS ${blockValue.toPrecision(3)}`}</title>}
+      </rect>
       <text className="layer-label" x={layer.x} y={layer.top - 10} textAnchor="middle">
         {layer.label}
       </text>
@@ -316,10 +330,17 @@ function EdgeBand({
   )
 }
 
-function OperatorLegend({ graph }: { graph: ModelGraph }) {
+function OperatorLegend({ graph, measured }: { graph: ModelGraph; measured: boolean }) {
   const unsupported = graph.nodes.filter((n) => n.unsupported).length
+  const runnable = graph.model.capabilities.inference
   return (
     <div className="legend" aria-label="Diagram legend">
+      {measured && (
+        <span className="legend-item">
+          <span className="activation-scale activation-scale-positive" aria-hidden="true" />
+          Operator color: size (RMS) of its output in the last run, scaled across operators
+        </span>
+      )}
       <span className="legend-item">
         <span className="swatch-block legend-input-bg" aria-hidden="true" />
         Graph input
@@ -340,7 +361,12 @@ function OperatorLegend({ graph }: { graph: ModelGraph }) {
       )}
       <p className="legend-note">
         Each block is one operator, labeled with its type; each link is a tensor passed between
-        operators. This model is shown for inspection only: values are not computed.
+        operators.{' '}
+        {measured
+          ? 'Values come from running the model in ONNX Runtime; select an operator to see them.'
+          : runnable
+            ? 'Run the model to color operators by the values they actually produce.'
+            : 'This model cannot be run here (see the import report), so values are not computed.'}
       </p>
     </div>
   )

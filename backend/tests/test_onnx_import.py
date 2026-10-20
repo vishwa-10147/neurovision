@@ -82,12 +82,11 @@ class TestNormalization:
         ]
         assert result.report.parameter_count == 32 + 8 + 24 + 3
 
-    def test_capabilities_are_inspection_only(self) -> None:
+    def test_capabilities_reflect_what_imports_support(self) -> None:
         caps = import_onnx(mlp_bytes(), "m", "mlp.onnx").graph.model.capabilities
-        assert caps.graph is True
-        assert not any(
-            [caps.inference, caps.training, caps.activations, caps.gradients]
-        )
+        # Runnable in the isolated worker (Milestone 6), but never trainable here.
+        assert caps.graph and caps.inference and caps.activations
+        assert not caps.training and not caps.gradients
 
     def test_dynamic_shapes_stay_symbolic_or_unknown(self) -> None:
         sample = build_sample("residual")

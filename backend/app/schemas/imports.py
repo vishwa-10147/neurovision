@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.schemas.graph import ModelGraph
+from app.schemas.inference import InputSpec
 
 
 class UnsupportedOperator(BaseModel):
@@ -32,6 +33,10 @@ class ImportReport(BaseModel):
     unsupported_operators: list[UnsupportedOperator] = Field(default_factory=list)
     opsets: list[OpsetImport] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    # Inputs a run must provide, as declared in the file.
+    inputs: list[InputSpec] = Field(default_factory=list)
+    # Why the model cannot be run here; empty when it is expected to run.
+    inference_blockers: list[str] = Field(default_factory=list)
 
 
 class ImportResponse(BaseModel):

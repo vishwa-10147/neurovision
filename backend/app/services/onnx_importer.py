@@ -2,13 +2,17 @@
 
 Uploaded files are untrusted. They are parsed from bytes in memory only:
 external data references are never followed (nothing is read from disk),
-the model is never run, and every string copied from the file is truncated.
+the model is never run here, and every string copied from the file is
+truncated. Running happens separately, in an isolated worker process
+(app/services/onnx_runtime.py); this module only decides whether a model
+looks runnable and records why not.
 """
 
+import importlib.util
 import math
 import re
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import onnx
@@ -26,6 +30,7 @@ from app.schemas.graph import (
     Shape,
 )
 from app.schemas.imports import ImportReport, OpsetImport, UnsupportedOperator
+from app.schemas.inference import SUPPORTED_INPUT_DTYPES, InputSpec
 
 MAX_OPERATORS = 5000
 MAX_TEXT = 200
@@ -34,15 +39,25 @@ MAX_WARNINGS = 50
 # Names shape inference makes up for dimensions it cannot determine.
 _PLACEHOLDER = re.compile(r"^unk__\d+$")
 
-# Imported graphs can be inspected; running them arrives with ONNX Runtime.
-INSPECTION_ONLY = Capabilities(
-    graph=True,
-    inference=False,
-    training=False,
-    activations=False,
-    gradients=False,
-    attention=False,
-)
+# Operators outside onnx.defs that ONNX Runtime still implements (its contrib ops).
+RUNTIME_DOMAINS = {"com.microsoft"}
+
+
+def capabilities_for(runnable: bool) -> Capabilities:
+    """Imported models can always be inspected; running them needs ONNX Runtime."""
+    return Capabilities(
+        graph=True,
+        inference=runnable,
+        training=False,
+        activations=runnable,
+        gradients=False,
+        attention=False,
+    )
+
+
+def runtime_available() -> bool:
+    # Only checks the package exists; it is imported in the worker process.
+    return importlib.util.find_spec("onnxruntime") is not None
 
 
 class OnnxImportError(ValueError):
@@ -54,6 +69,11 @@ class ImportResult:
     graph: ModelGraph
     initializers: dict[str, TensorProto]
     report: ImportReport
+    inputs: list[InputSpec] = field(default_factory=list)
+    # Tensor name -> id of the node that produces it (inputs and operators).
+    producers: dict[str, str] = field(default_factory=dict)
+    # Reasons the model cannot run; empty when it is expected to run.
+    blockers: list[str] = field(default_factory=list)
 
 
 def _text(value: str | bytes, limit: int = MAX_TEXT) -> str:
@@ -202,9 +222,25 @@ def import_onnx(data: bytes, model_id: str, file_name: str) -> ImportResult:
     producer: dict[str, str] = {}
 
     # Graph inputs that are not weights become Input nodes.
+    input_specs: list[InputSpec] = []
+    blockers: list[str] = []
     for i, info in enumerate(i for i in graph.input if i.name not in initializers):
         node_id = f"input_{i}"
         producer[info.name] = node_id
+        is_tensor = info.type.HasField("tensor_type")
+        dtype = _dtype(info.type.tensor_type.elem_type) if is_tensor else "non-tensor"
+        input_specs.append(
+            InputSpec(
+                name=info.name,
+                node_id=node_id,
+                dtype=dtype,
+                shape=shapes.get(info.name),
+            )
+        )
+        if dtype not in SUPPORTED_INPUT_DTYPES:
+            blockers.append(
+                f"Input '{_text(info.name, 80)}' has type {dtype}, which cannot be provided here."
+            )
         nodes.append(
             GraphNode(
                 id=node_id,
@@ -212,6 +248,7 @@ def import_onnx(data: bytes, model_id: str, file_name: str) -> ImportResult:
                 op_type="Input",
                 output_tensors=[_text(info.name)],
                 output_shapes=[shapes.get(info.name)],
+                metadata={"onnx": {"dtype": dtype}},
             )
         )
 
@@ -308,6 +345,20 @@ def import_onnx(data: bytes, model_id: str, file_name: str) -> ImportResult:
             f"…and {len(warnings) - MAX_WARNINGS + 1} more warnings.",
         ]
 
+    unrunnable = sorted(
+        op for (op, domain) in unsupported if domain not in RUNTIME_DOMAINS
+    )
+    if unrunnable:
+        blockers.append(
+            f"It uses non-standard operators ONNX Runtime cannot run: {', '.join(unrunnable)}."
+        )
+    if external:
+        blockers.append(
+            f"{len(external)} weight tensor(s) are stored in external files that were not uploaded."
+        )
+    if not runtime_available():
+        blockers.append("ONNX Runtime is not installed on the server.")
+
     opsets = [
         OpsetImport(domain=o.domain or "ai.onnx", version=o.version)
         for o in model.opset_import
@@ -319,7 +370,7 @@ def import_onnx(data: bytes, model_id: str, file_name: str) -> ImportResult:
             id=model_id,
             name=name,
             source_format="onnx",
-            capabilities=INSPECTION_ONLY,
+            capabilities=capabilities_for(runnable=not blockers),
             metadata={
                 "onnx": {
                     "file_name": _text(file_name),
@@ -354,6 +405,8 @@ def import_onnx(data: bytes, model_id: str, file_name: str) -> ImportResult:
         ],
         opsets=opsets,
         warnings=warnings,
+        inputs=input_specs,
+        inference_blockers=blockers,
     )
     return ImportResult(
         graph=model_graph,
@@ -361,4 +414,7 @@ def import_onnx(data: bytes, model_id: str, file_name: str) -> ImportResult:
             tensor_ids[name]: tensor for name, tensor in initializers.items()
         },
         report=report,
+        inputs=input_specs,
+        producers=producer,
+        blockers=blockers,
     )

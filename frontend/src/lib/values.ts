@@ -10,6 +10,14 @@ export function formatValue(v: number, digits = 3): string {
 }
 
 /**
+ * Root mean square of a tensor from its (population) mean and std:
+ * RMS² = mean² + std². A sign-free size of an operator's output.
+ */
+export function rmsFromSummary(summary: { mean: number; std: number } | null): number | null {
+  return summary ? Math.sqrt(summary.mean ** 2 + summary.std ** 2) : null
+}
+
+/**
  * Fill for a measured value, scaled by the largest magnitude in its group:
  * blue for positive, orange for negative, neutral at zero.
  */

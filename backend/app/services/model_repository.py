@@ -17,6 +17,7 @@ from onnx import TensorProto
 from app.ml.educational_network import EducationalNetwork
 from app.schemas.architecture import DenseNetworkConfig
 from app.schemas.graph import ModelGraph
+from app.schemas.inference import InputSpec
 from app.schemas.training import EpochMetrics
 
 
@@ -47,10 +48,18 @@ class ModelRecord(StoredModel):
 
 @dataclass(kw_only=True)
 class ImportedModelRecord(StoredModel):
-    """An ONNX model imported for inspection only; it is never executed."""
+    """An imported ONNX model. It is only ever run inside the isolated worker."""
 
     # Initializers keyed by the tensor ids used in the graph ("t0", "t1", ...).
     initializers: dict[str, TensorProto] = field(default_factory=dict)
+    # The uploaded file, sent to the inference worker when the model runs.
+    model_bytes: bytes = b""
+    inputs: list[InputSpec] = field(default_factory=list)
+    # Tensor name -> producing node id.
+    producers: dict[str, str] = field(default_factory=dict)
+    # Why it cannot run; empty when it is expected to run.
+    blockers: list[str] = field(default_factory=list)
+    operator_count: int = 0
 
 
 class ModelRepository(Protocol):

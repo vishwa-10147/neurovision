@@ -1,0 +1,15 @@
+{
+  "events": [
+    {
+      "epoch": 1,
+      "step": 23,
+      "metrics": { "loss": 0.9131, "accuracy": 0.5417, "val_loss": 0.8402, "val_accuracy": 0.6111 },
+      "selected_activations": { "hidden_1 (ReLU)": [0.0, 0.4127, 0.0, 1.0731], "hidden_2 (tanh)": [-0.2214, 0.8573] }
+    },
+    {
+      "epoch": 2,
+      "step": 46,
+      "metrics": { "loss": 0.7704, "accuracy": 0.6153, "val_loss": 0.7332, "val_accuracy": 0.65 }
+    }
+  ]
+}

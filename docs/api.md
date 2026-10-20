@@ -178,6 +178,59 @@ nothing. The server closes the socket after the final event.
     (CORS does not cover WebSockets); otherwise the connection is
     refused.
 
+-   External runs (ids `run_…`) stream on this same socket; see below.
+
+## External runs
+
+Training scripts outside NeuroVision stream their own metrics and
+activations into a run. The Python client in `sdk/` wraps these
+endpoints; see [live-runs.md](live-runs.md). Bodies follow
+`shared/schemas/external-run.schema.json`.
+
+### `POST /runs`
+
+``` json
+{ "name": "resnet18 / lr 3e-4", "total_epochs": 20, "model_id": null }
+```
+
+`name` 1–80 characters, `total_epochs` 1–1,000,000, optional `model_id`
+of a model already in NeuroVision (`422` if unknown). `201 Created`
+returns `{"run": <RunInfo>, "write_token": "…"}`. The token is returned
+only here. `429` when 8 runs are already active.
+
+### `POST /runs/{run_id}/events`
+
+Requires `Authorization: Bearer <write_token>` (`401` missing, `403`
+wrong). The body is an `EventBatch`, up to 32 steps and 2 MB (`413`):
+
+``` json
+{"events": [{"epoch": 1, "step": 23,
+             "metrics": {"loss": 0.91, "val_loss": 0.84},
+             "selected_activations": {"hidden_1": [0.0, 0.41, 1.07]}}]}
+```
+
+Each step follows the `training.step` bounds (≤ 16 finite metrics,
+≤ 8 layers × 256 finite values). Steps must increase and epochs must
+not decrease across the run (`422` with the offending field). The whole
+batch is validated before any of it is published. An empty `events`
+list is a heartbeat. `202` returns `{"accepted", "steps_logged"}`.
+`409` once the run has finished or has logged 10,000 steps.
+
+### `POST /runs/{run_id}/finish`
+
+Same token. `{"status": "completed"}` publishes `training.completed`
+with the last logged metrics; `{"status": "failed", "message": "…"}`
+publishes `training.failed` (message ≤ 500 characters).
+
+### `GET /runs` and `GET /runs/{run_id}`
+
+`RunInfo` for each retained run, newest first: `run_id`, `name`,
+`model_id`, `status` (`running` | `completed` | `failed`),
+`total_epochs`, `epoch`, `step`, `steps_logged`, `created_at`, and
+`last_event_at` (Unix seconds). Tokens are never included. A run with
+no events or heartbeats for 5 minutes is marked `failed` when the API
+is next accessed.
+
 ## `POST /import/onnx?filename=…`
 
 Imports an ONNX model for inspection. Send the file as the raw request
@@ -196,8 +249,50 @@ references are never opened. Errors:
 -   `422 invalid_model`: not parseable as ONNX, no graph, or more than
     5,000 operators.
 
-The graph's capabilities are `graph: true` only. Forward, training, and
-metrics requests for imported models return `400 capability_unavailable`.
+The graph's capabilities report `inference` and `activations` as `true`
+when the model can be run (see `POST /models/{model_id}/run`).
+`report.inputs` lists the inputs a run must provide, and
+`report.inference_blockers` explains why a model cannot run. `training`
+and `gradients` are always `false`. Forward, training, and metrics
+requests for imported models return `400 capability_unavailable`.
+
+## `POST /models/{model_id}/run`
+
+Runs an imported model in ONNX Runtime, inside an isolated worker process
+(the API process never loads the runtime). Body
+(`shared/schemas/onnx-run.schema.json`):
+
+``` json
+{
+  "inputs": { "image": { "shape": [1, 3, 32, 32], "fill": "random", "seed": 0 } },
+  "capture": ["node_4", "node_9"]
+}
+```
+
+-   `inputs`: one entry per declared input. `shape` must match the
+    declared rank and every fixed dimension; named or unknown
+    dimensions take 1–100,000. The total across inputs is at most
+    1,000,000 values. Give `values` (row-major, finite; whole numbers in
+    range for integer inputs), or use `fill`: `random` (seeded normal
+    for floats, 0–9 for integers), `zeros`, `ones`, or `range`
+    (−1 to 1).
+-   `capture` (optional): operator node ids whose outputs to return.
+    Omitted, every operator is captured for graphs up to 200 operators.
+
+Returns `{model_id, runtime, elapsed_ms, outputs, intermediates, notes}`.
+Each tensor has `name`, producing `node_id`, `shape`, `dtype`, `count`,
+`summary` (finite values), `non_finite_count`, at most 4,096 `values`,
+and `truncated`. `elapsed_ms` is model execution only; `notes` mention
+worker startup and model loading.
+
+Errors: `422 validation_error` (inputs that don't match the model, with
+the field), `422 inference_unsupported` (the import's blockers),
+`422 inference_failed` (ONNX Runtime rejected the model or inputs; its
+first message line), `504 inference_timeout` (over
+`NEUROVISION_INFERENCE_TIMEOUT_SECONDS`, default 10; the worker is
+restarted), `500 inference_crashed` (the worker died; it restarts on the
+next run), `429` (another run in progress), and `400
+capability_unavailable` for educational models (use `/forward`).
 Imported models share the in-memory repository, which also has a 512 MB
 budget and evicts the least recently used models.
 

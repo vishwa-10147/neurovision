@@ -7,7 +7,9 @@ from app.core.config import get_settings
 from app.core.errors import not_found
 from app.schemas.errors import ErrorResponse
 from app.schemas.training import TrainingJobInfo
-from app.services.training_jobs import TERMINAL_EVENTS, TrainingJobManager
+from app.services.event_stream import TERMINAL_EVENTS, EventStream
+from app.services.external_runs import ExternalRunManager
+from app.services.training_jobs import TrainingJobManager
 
 router = APIRouter(prefix="/training", tags=["training"])
 
@@ -43,7 +45,10 @@ def cancel_job(job_id: JobId, jobs: Jobs) -> TrainingJobInfo:
 
 @router.websocket("/{job_id}/events")
 async def job_events(websocket: WebSocket, job_id: str) -> None:
-    """Replay the job's events so far, then stream new ones until it ends."""
+    """Replay the job's events so far, then stream new ones until it ends.
+
+    Also follows external runs (ids from POST /runs), which share the format.
+    """
     # CORS does not cover WebSockets; check the browser origin explicitly.
     origin = websocket.headers.get("origin")
     if origin is not None and origin not in get_settings().cors_origins:
@@ -51,7 +56,8 @@ async def job_events(websocket: WebSocket, job_id: str) -> None:
         return
 
     jobs: TrainingJobManager = websocket.app.state.training_jobs
-    job = jobs.get(job_id)
+    runs: ExternalRunManager = websocket.app.state.external_runs
+    job: EventStream | None = jobs.get(job_id) or runs.get(job_id)
     await websocket.accept()
     if job is None:
         await websocket.close(code=CLOSE_UNKNOWN_JOB, reason="Unknown training job.")

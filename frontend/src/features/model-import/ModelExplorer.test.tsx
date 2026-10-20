@@ -89,7 +89,7 @@ describe('Model Explorer', () => {
     expect(report).toHaveTextContent('Filesmall_cnn.onnx (4.0 KB)')
     expect(report).toHaveTextContent('Initializers1 (216 values)')
     expect(report).toHaveTextContent('Graph inspection: available')
-    expect(report).toHaveTextContent('Running the model: not available — Running imported models is not supported yet.')
+    expect(report).toHaveTextContent('Running the model: not available — It cannot run here')
     expect(within(report).getByText('MyCustomOp')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Import warnings' })).toHaveTextContent(/MyCustomOp/)
   })

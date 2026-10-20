@@ -5,8 +5,8 @@ import type { ImportReport } from '../../types/imports'
 
 const CAPABILITIES: { key: keyof Capabilities; label: string; unavailable: string }[] = [
   { key: 'graph', label: 'Graph inspection', unavailable: '' },
-  { key: 'inference', label: 'Running the model', unavailable: 'Running imported models is not supported yet.' },
-  { key: 'activations', label: 'Activation values', unavailable: 'Needs the model to run, which is not supported yet.' },
+  { key: 'inference', label: 'Running the model', unavailable: 'It cannot run here; see "Run the model" for why.' },
+  { key: 'activations', label: 'Activation values', unavailable: 'Needs the model to run.' },
   { key: 'training', label: 'Training', unavailable: 'Imported models cannot be trained here.' },
   { key: 'gradients', label: 'Gradients', unavailable: 'Only available for models trained here.' },
 ]

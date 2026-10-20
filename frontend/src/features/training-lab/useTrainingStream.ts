@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { trainingEventsUrl } from '../../api/training'
-import { useTrainingStore } from '../../stores/trainingStore'
+import { useTrainingStore, type StreamState } from '../../stores/trainingStore'
 import { TrainingEventSchema, type TrainingEvent } from '../../types/events'
 
 const TERMINAL = new Set(['training.completed', 'training.cancelled', 'training.failed'])
@@ -8,18 +8,29 @@ const TERMINAL = new Set(['training.completed', 'training.cancelled', 'training.
 const FLUSH_MS = 50
 const MAX_RECONNECTS = 3
 
-/**
- * Follows a training job's WebSocket. The server replays past events on every
- * connection, so reconnecting after a drop loses nothing.
- */
+/** Follows a Training Lab job, feeding the training store. */
 export function useTrainingStream(jobId: string | null, running: boolean) {
   const applyEvents = useTrainingStore((s) => s.applyEvents)
   const setStream = useTrainingStore((s) => s.setStream)
+  return useEventStream(jobId, running, applyEvents, setStream)
+}
+
+/**
+ * Follows the event WebSocket of a training job or external run while
+ * `active`. The server replays past events on every connection, so
+ * reconnecting after a drop loses nothing. Stops after a terminal event.
+ */
+export function useEventStream(
+  jobId: string | null,
+  active: boolean,
+  applyEvents: (events: TrainingEvent[]) => void,
+  setStream: (stream: StreamState) => void,
+) {
   const [attempt, setAttempt] = useState(0)
   const failures = useRef(0)
 
   useEffect(() => {
-    if (!jobId || !running) return
+    if (!jobId || !active) return
     let closedByUs = false
     let finished = false
     let buffer: TrainingEvent[] = []
@@ -83,7 +94,7 @@ export function useTrainingStream(jobId: string | null, running: boolean) {
       if (retryTimer) clearTimeout(retryTimer)
       socket.close()
     }
-  }, [jobId, running, attempt, applyEvents, setStream])
+  }, [jobId, active, attempt, applyEvents, setStream])
 
   /** Reconnect after the stream gave up. */
   const reconnect = useCallback(() => setAttempt((n) => n + 1), [])

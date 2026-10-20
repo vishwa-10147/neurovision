@@ -5,6 +5,15 @@ import { ModelGraphSchema } from './graph'
 /** Mirrors the backend default (NEUROVISION_MAX_UPLOAD_BYTES); the server enforces it. */
 export const MAX_UPLOAD_BYTES = 64 * 1024 * 1024
 
+export const InputSpecSchema = z.object({
+  name: z.string(),
+  node_id: z.string(),
+  dtype: z.string(),
+  /** Declared shape: numbers are fixed, strings are named (any size), null is unknown. */
+  shape: z.array(z.union([z.number().int(), z.string(), z.null()])).nullable(),
+})
+export type InputSpec = z.infer<typeof InputSpecSchema>
+
 export const ImportReportSchema = z.object({
   format: z.literal('onnx'),
   file_name: z.string(),
@@ -17,8 +26,46 @@ export const ImportReportSchema = z.object({
   unsupported_operators: z.array(z.object({ op_type: z.string(), domain: z.string(), count: z.number().int() })),
   opsets: z.array(z.object({ domain: z.string(), version: z.number().int() })),
   warnings: z.array(z.string()),
+  inputs: z.array(InputSpecSchema).default([]),
+  /** Why the model cannot run here; empty when it is expected to run. */
+  inference_blockers: z.array(z.string()).default([]),
 })
 export type ImportReport = z.infer<typeof ImportReportSchema>
+
+/** Mirrors backend/app/schemas/inference.py (shared/schemas/onnx-run.schema.json). */
+export const RUN_LIMITS = { maxElements: 1_000_000, maxDimension: 100_000, maxRank: 8, maxTypedValues: 4096 } as const
+export const FILLS = ['random', 'zeros', 'ones', 'range'] as const
+export type Fill = (typeof FILLS)[number]
+
+export interface RunInput {
+  shape: number[]
+  values?: number[]
+  fill?: Fill
+  seed?: number
+}
+
+export const TensorValuesSchema = z.object({
+  name: z.string(),
+  node_id: z.string().nullable(),
+  shape: z.array(z.number().int()),
+  dtype: z.string(),
+  count: z.number().int(),
+  summary: z.object({ min: z.number(), max: z.number(), mean: z.number(), std: z.number() }).nullable(),
+  non_finite_count: z.number().int(),
+  values: z.array(z.number().nullable()),
+  truncated: z.boolean(),
+})
+export type TensorValues = z.infer<typeof TensorValuesSchema>
+
+export const RunResponseSchema = z.object({
+  model_id: z.string(),
+  runtime: z.string(),
+  elapsed_ms: z.number(),
+  outputs: z.array(TensorValuesSchema),
+  intermediates: z.array(TensorValuesSchema),
+  notes: z.array(z.string()),
+})
+export type RunResponse = z.infer<typeof RunResponseSchema>
 
 export const ImportResponseSchema = z.object({
   model_id: z.string(),

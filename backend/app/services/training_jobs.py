@@ -5,12 +5,10 @@ loop. Each job keeps its event history (at most epochs + 2 events), so a
 WebSocket that connects late, or reconnects, replays it and then follows live.
 """
 
-import asyncio
 import logging
 import threading
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
 from uuid import uuid4
 
 from app.core.errors import ApiError, invalid
@@ -24,26 +22,21 @@ from app.schemas.events import (
     TrainingStep,
 )
 from app.schemas.training import JobStatus, TrainingConfig, TrainingJobInfo
+from app.services.event_stream import EventStream
 from app.services.model_repository import ModelRecord
 
 logger = logging.getLogger("neurovision.training")
 
-TERMINAL_EVENTS = {"training.completed", "training.cancelled", "training.failed"}
-Event = dict[str, Any]
-Subscriber = tuple[asyncio.AbstractEventLoop, "asyncio.Queue[Event]"]
 
-
-class TrainingJob:
+class TrainingJob(EventStream):
     def __init__(self, model_id: str, config: TrainingConfig) -> None:
+        super().__init__()
         self.job_id = f"job_{uuid4().hex[:12]}"
         self.model_id = model_id
         self.config = config
         self.status: JobStatus = "running"
         self.epoch = 0
         self.cancel_requested = threading.Event()
-        self._events: list[Event] = []
-        self._subscribers: set[Subscriber] = set()
-        self._lock = threading.Lock()
 
     @property
     def active(self) -> bool:
@@ -58,29 +51,6 @@ class TrainingJob:
             total_epochs=self.config.epochs,
             config=self.config,
         )
-
-    def publish(self, event: Event) -> None:
-        """Record an event and deliver it to every subscriber (any thread)."""
-        with self._lock:
-            self._events.append(event)
-            subscribers = list(self._subscribers)
-        for loop, queue in subscribers:
-            try:
-                loop.call_soon_threadsafe(queue.put_nowait, event)
-            except RuntimeError:  # The subscriber's event loop has closed.
-                self.unsubscribe(queue)
-
-    def subscribe(self) -> tuple[list[Event], "asyncio.Queue[Event]"]:
-        """Call from an event loop: past events plus a queue of future ones."""
-        queue: asyncio.Queue[Event] = asyncio.Queue()
-        with self._lock:
-            history = list(self._events)
-            self._subscribers.add((asyncio.get_running_loop(), queue))
-        return history, queue
-
-    def unsubscribe(self, queue: "asyncio.Queue[Event]") -> None:
-        with self._lock:
-            self._subscribers = {s for s in self._subscribers if s[1] is not queue}
 
 
 class TrainingJobManager:

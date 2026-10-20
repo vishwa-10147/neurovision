@@ -55,12 +55,17 @@ export function TrainingProgress({ job, history }: { job: TrainingJob; history: 
   )
 }
 
+const PROBE_DESCRIPTION = 'Measured on the first validation example after each epoch.'
+
 export function ActivationStrips({
   activations,
   layerNames,
+  description = PROBE_DESCRIPTION,
 }: {
   activations: Record<string, number[]>
   layerNames: Record<string, string>
+  /** Where the values come from. */
+  description?: string
 }) {
   const entries = Object.entries(activations)
   if (entries.length === 0) return null
@@ -68,8 +73,8 @@ export function ActivationStrips({
     <section className="activation-strips card" aria-label="Streamed activations">
       <h3>Activations during training</h3>
       <p className="muted">
-        Measured on the first validation example after each epoch. Colors are scaled within each
-        layer: orange negative, blue positive. Hover a cell for its value.
+        {description} Colors are scaled within each layer: orange negative, blue positive. Hover a
+        cell for its value.
       </p>
       {entries.map(([nodeId, values]) => {
         const maxAbs = Math.max(0, ...values.map(Math.abs))

@@ -5,6 +5,7 @@
  */
 import { createContext, useContext } from 'react'
 import type { ForwardSnapshot, Selection, ViewMode } from '../stores/modelStore'
+import type { TensorValues } from '../types/imports'
 
 export interface ModelView {
   modelId: string | null
@@ -16,6 +17,8 @@ export interface ModelView {
   select: (selection: Selection) => void
   viewMode: ViewMode
   setViewMode: (mode: ViewMode) => void
+  /** Imported models: tensors each node produced in the latest run, if any. */
+  runValues?: Record<string, TensorValues[]> | null
 }
 
 export const ModelViewContext = createContext<ModelView | null>(null)

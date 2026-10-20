@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://neurovision.local/schemas/onnx-run.schema.json",
+  "$defs": {
+    "RunInput": {
+      "additionalProperties": false,
+      "properties": {
+        "shape": {
+          "items": {
+            "maximum": 100000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maxItems": 8,
+          "title": "Shape",
+          "type": "array"
+        },
+        "values": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 1000000,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Values"
+        },
+        "fill": {
+          "default": "random",
+          "enum": [
+            "random",
+            "zeros",
+            "ones",
+            "range"
+          ],
+          "title": "Fill",
+          "type": "string"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 2147483647,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "shape"
+      ],
+      "title": "RunInput",
+      "type": "object"
+    },
+    "RunRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/RunInput"
+          },
+          "maxProperties": 16,
+          "title": "Inputs",
+          "type": "object"
+        },
+        "capture": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 256,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capture"
+        }
+      },
+      "required": [
+        "inputs"
+      ],
+      "title": "RunRequest",
+      "type": "object"
+    },
+    "RunResponse": {
+      "properties": {
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "runtime": {
+          "title": "Runtime",
+          "type": "string"
+        },
+        "elapsed_ms": {
+          "title": "Elapsed Ms",
+          "type": "number"
+        },
+        "outputs": {
+          "items": {
+            "$ref": "#/$defs/TensorValues"
+          },
+          "title": "Outputs",
+          "type": "array"
+        },
+        "intermediates": {
+          "items": {
+            "$ref": "#/$defs/TensorValues"
+          },
+          "title": "Intermediates",
+          "type": "array"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "model_id",
+        "runtime",
+        "elapsed_ms",
+        "outputs",
+        "intermediates"
+      ],
+      "title": "RunResponse",
+      "type": "object"
+    },
+    "TensorSummary": {
+      "properties": {
+        "min": {
+          "title": "Min",
+          "type": "number"
+        },
+        "max": {
+          "title": "Max",
+          "type": "number"
+        },
+        "mean": {
+          "title": "Mean",
+          "type": "number"
+        },
+        "std": {
+          "title": "Std",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min",
+        "max",
+        "mean",
+        "std"
+      ],
+      "title": "TensorSummary",
+      "type": "object"
+    },
+    "TensorValues": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "node_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Node Id"
+        },
+        "shape": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Shape",
+          "type": "array"
+        },
+        "dtype": {
+          "title": "Dtype",
+          "type": "string"
+        },
+        "count": {
+          "title": "Count",
+          "type": "integer"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TensorSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "non_finite_count": {
+          "title": "Non Finite Count",
+          "type": "integer"
+        },
+        "values": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Values",
+          "type": "array"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "node_id",
+        "shape",
+        "dtype",
+        "count",
+        "summary",
+        "non_finite_count",
+        "values",
+        "truncated"
+      ],
+      "title": "TensorValues",
+      "type": "object"
+    }
+  },
+  "title": "OnnxRun"
+}

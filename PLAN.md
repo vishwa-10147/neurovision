@@ -151,14 +151,14 @@ a runnable, testable state.
 
 ### Tasks
 
--   [ ] Add ONNX Runtime only after graph inspection is stable.
--   [ ] Define supported input tensor types/shapes.
--   [ ] Validate inference inputs.
--   [ ] Add inference time and resource limits.
--   [ ] Display output tensors and relevant intermediate values where
+-   [x] Add ONNX Runtime only after graph inspection is stable.
+-   [x] Define supported input tensor types/shapes.
+-   [x] Validate inference inputs.
+-   [x] Add inference time and resource limits.
+-   [x] Display output tensors and relevant intermediate values where
     supported.
--   [ ] Isolate execution and document deployment restrictions.
--   [ ] Test invalid input shapes and unsupported operations.
+-   [x] Isolate execution and document deployment restrictions.
+-   [x] Test invalid input shapes and unsupported operations.
 
 ### Acceptance criteria
 

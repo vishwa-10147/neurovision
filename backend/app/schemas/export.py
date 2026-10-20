@@ -8,12 +8,16 @@ import json
 from pathlib import Path
 from typing import Any
 
+from pydantic.json_schema import models_json_schema
+
 from app.schemas.architecture import DenseNetworkConfig
 from app.schemas.errors import ErrorResponse
 from app.schemas.events import training_event_adapter
 from app.schemas.graph import ModelGraph
 from app.schemas.health import HealthResponse
 from app.schemas.imports import ImportResponse
+from app.schemas.inference import RunRequest, RunResponse
+from app.schemas.runs import EventBatch, RunCreate, RunCreated, RunFinish, RunList
 from app.schemas.training import (
     ForwardRequest,
     ForwardResponse,
@@ -67,8 +71,27 @@ def build_schemas() -> dict[str, dict[str, Any]]:
         "tensor.schema.json": _with_header(
             "tensor.schema.json", "TensorResponse", TensorResponse.model_json_schema()
         ),
+        "onnx-run.schema.json": _with_header(
+            "onnx-run.schema.json",
+            "OnnxRun",
+            # One flat $defs, so nested references resolve from the root.
+            models_json_schema(
+                [(RunRequest, "validation"), (RunResponse, "serialization")]
+            )[1],
+        ),
         "import.schema.json": _with_header(
             "import.schema.json", "ImportResponse", ImportResponse.model_json_schema()
+        ),
+        "external-run.schema.json": _with_header(
+            "external-run.schema.json",
+            "ExternalRun",
+            # One flat $defs, so nested references resolve from the root.
+            models_json_schema(
+                [
+                    (model, "validation")
+                    for model in (RunCreate, RunCreated, EventBatch, RunFinish, RunList)
+                ]
+            )[1],
         ),
         "error.schema.json": _with_header(
             "error.schema.json", "ErrorResponse", ErrorResponse.model_json_schema()
