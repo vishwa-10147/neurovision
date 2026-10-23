@@ -119,8 +119,8 @@ neurovision/
 ├── backend/                  # FastAPI service
 │   ├── app/
 │   │   ├── api/routes/       # REST + WebSocket endpoints
-│   │   ├── ml/               # PyTorch educational networks, training
-│   │   ├── services/         # ONNX importer, ONNX Runtime worker, jobs, runs, tensor views
+│   │   ├── ml/               # educational networks, datasets, trainer, ONNX worker + samples, tensor maps
+│   │   ├── services/         # ONNX import/runtime, training jobs, event stream, external runs, tensors
 │   │   ├── schemas/          # Pydantic models
 │   │   └── core/             # config, errors
 │   ├── tests/                # pytest suite (147 tests)
