@@ -692,3 +692,41 @@ code {
 .filters { border-collapse: collapse; font-size: 0.75rem; display: block; overflow-x: auto; max-width: 100%; }
 .filters th { color: var(--muted); font-weight: 500; padding: 0.15rem 0.35rem; }
 .filters td { padding: 0.15rem; }
+
+/* Live runs: controls, alerts, layer health (ADR 0008) */
+.status-paused { color: var(--warn); }
+.run-controls { display: grid; gap: 0.75rem; margin-top: 0.5rem; }
+.run-controls .button { display: inline-flex; align-items: center; gap: 0.35rem; }
+.run-controls-off { margin: 0.5rem 0 0; font-size: 0.9rem; }
+.confirm-stop { display: inline-flex; gap: 0.5rem; }
+.lr-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem 0.75rem; }
+.lr-form .field { min-width: 10rem; }
+.lr-form p { flex-basis: 100%; margin: 0; font-size: 0.85rem; }
+.command-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; font-size: 0.85rem; }
+.command { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.1rem 0.75rem; padding: 0.35rem 0.6rem; border-radius: 6px; background: var(--surface-2); }
+.command-message { grid-column: 1 / -1; }
+.command-pending .command-status { color: var(--accent); }
+.command-applied .command-status { color: var(--ok); }
+.command-rejected .command-status, .command-expired .command-status { color: var(--bad); }
+.run-alerts h3, .layer-health h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+.run-alerts > p { margin: 0; }
+.run-alerts ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; max-height: 22rem; overflow-y: auto; }
+.alert { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.6rem; padding: 0.55rem 0.7rem; border-radius: 8px; border-left: 4px solid currentColor; background: var(--surface-2); }
+.alert p { margin: 0; color: var(--text); }
+.alert p.muted { color: var(--muted); font-size: 0.85rem; }
+.alert-critical { color: var(--bad); }
+.alert-warning { color: var(--warn); }
+.alert-info { color: var(--accent); }
+.alert-message { font-weight: 600; }
+.layer-health { display: grid; gap: 0.6rem; }
+.layer-health > p { margin: 0; }
+.table-scroll { overflow-x: auto; max-width: 100%; }
+.health-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.health-table th, .health-table td { padding: 0.3rem 0.6rem; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.health-table th:first-child, .health-table td:first-child { text-align: left; }
+.health-table thead th { color: var(--muted); font-weight: 600; }
+.health-table tbody th { font-weight: 500; }
+.health-table abbr { text-decoration: underline dotted; cursor: help; }
+.value-ok { color: var(--ok); }
+.value-warn { color: var(--warn); }
+.value-bad { color: var(--bad); font-weight: 600; }

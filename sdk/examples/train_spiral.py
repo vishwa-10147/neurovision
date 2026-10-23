@@ -1,11 +1,14 @@
 """A standard PyTorch training loop that streams to NeuroVision.
 
 Trains a small MLP on a synthetic 3-arm spiral (no downloads) and logs loss,
-accuracy, and post-activation values of two hidden layers after every epoch.
-Open NeuroVision → Live runs while it trains.
+accuracy, post-activation values of two hidden layers, and training-health
+statistics after every epoch. Open NeuroVision → Live runs while it trains:
+health alerts appear there, and you can pause, resume, stop, save a
+checkpoint, or change the learning rate from the dashboard.
 
     cd sdk/examples
     python train_spiral.py --url http://127.0.0.1:8001
+    python train_spiral.py --lr 0.5      # too high: watch the alerts
 """
 
 import argparse
@@ -66,6 +69,7 @@ def main() -> None:
     parser.add_argument(
         "--delay", type=float, default=0.05, help="seconds to pause per epoch"
     )
+    parser.add_argument("--lr", type=float, default=0.003, help="Adam learning rate")
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -74,19 +78,39 @@ def main() -> None:
     x_train, y_train, x_val, y_val = x[:split], y[:split], x[split:], y[split:]
 
     model = Net()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.003)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
     # Post-activation values for one fixed validation example.
     probe = nv.ActivationProbe(
         model, {"hidden_1 (ReLU)": model.act1, "hidden_2 (tanh)": model.act2}, x_val[:1]
     )
+    # Gradient, weight, update and activation statistics for health alerts.
+    monitor = nv.HealthMonitor(model, optimizer=optimizer, probe_batch=x_val[:64])
+    checkpoints = Path(__file__).resolve().parent / "checkpoints"
+    epoch = 0
 
-    with nv.start_run("Spiral MLP", total_epochs=args.epochs, url=args.url) as run:
+    def save_checkpoint() -> str:
+        checkpoints.mkdir(exist_ok=True)
+        path = checkpoints / f"spiral-epoch{epoch}.pt"
+        torch.save({"model": model.state_dict(), "epoch": epoch}, path)
+        return path.name
+
+    with nv.start_run(
+        "Spiral MLP",
+        total_epochs=args.epochs,
+        url=args.url,
+        control=True,
+        optimizer=optimizer,
+        on_checkpoint=save_checkpoint,
+    ) as run:
         step = 0
         for epoch in range(1, args.epochs + 1):
             correct = total = 0
             running = 0.0
             for i in torch.randperm(len(x_train)).split(32):
+                # Apply dashboard commands; blocks while paused.
+                if not run.poll():
+                    break
                 xb, yb = x_train[i], y_train[i]
                 optimizer.zero_grad()
                 logits = model(xb)
@@ -97,6 +121,10 @@ def main() -> None:
                 running += loss.item() * len(xb)
                 correct += (logits.argmax(1) == yb).sum().item()
                 total += len(xb)
+            if total == 0:
+                # Stopped before this epoch's first batch: nothing to log.
+                print(f"stopped from NeuroVision before epoch {epoch}")
+                break
             val_loss, val_accuracy = evaluate(model, x_val, y_val)
             run.log(
                 epoch=epoch,
@@ -108,7 +136,11 @@ def main() -> None:
                     "val_accuracy": val_accuracy,
                 },
                 activations=probe.capture(),
+                health=monitor.collect(),
             )
+            if run.should_stop:
+                print(f"stopped from NeuroVision at epoch {epoch}")
+                break
             if epoch % 25 == 0:
                 print(
                     f"epoch {epoch}: val_loss={val_loss:.4f} val_acc={val_accuracy:.3f}"

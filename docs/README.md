@@ -32,3 +32,4 @@ For an overview of the whole system with its design rationale and measured evalu
 | [0005](decisions/0005-onnx-runtime-inference.md) | Running imported models in an isolated ONNX Runtime worker |
 | [0006](decisions/0006-external-runs.md) | External runs from users' own training scripts |
 | [0007](decisions/0007-tensor-views.md) | Feature-map, attention and filter views |
+| [0008](decisions/0008-run-health-and-controls.md) | Training health alerts and two-way run controls |

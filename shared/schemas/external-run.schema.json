@@ -2,6 +2,176 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://neurovision.local/schemas/external-run.schema.json",
   "$defs": {
+    "ActivationHealth": {
+      "additionalProperties": false,
+      "description": "One activation module's output on the script's fixed probe batch.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "relu",
+            "tanh",
+            "sigmoid",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "mean": {
+          "title": "Mean",
+          "type": "number"
+        },
+        "std": {
+          "minimum": 0,
+          "title": "Std",
+          "type": "number"
+        },
+        "dead_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dead Fraction"
+        },
+        "saturated_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Saturated Fraction"
+        }
+      },
+      "required": [
+        "kind",
+        "mean",
+        "std"
+      ],
+      "title": "ActivationHealth",
+      "type": "object"
+    },
+    "CommandAck": {
+      "additionalProperties": false,
+      "description": "The script's answer to one command.",
+      "properties": {
+        "status": {
+          "enum": [
+            "applied",
+            "rejected"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "paused": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paused"
+        },
+        "learning_rate": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Learning Rate"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "CommandAck",
+      "type": "object"
+    },
+    "CommandList": {
+      "properties": {
+        "commands": {
+          "items": {
+            "$ref": "#/$defs/RunCommand"
+          },
+          "title": "Commands",
+          "type": "array"
+        }
+      },
+      "required": [
+        "commands"
+      ],
+      "title": "CommandList",
+      "type": "object"
+    },
+    "CommandRequest": {
+      "additionalProperties": false,
+      "description": "Issued from the dashboard; the script applies it at its next run.poll().",
+      "properties": {
+        "kind": {
+          "enum": [
+            "pause",
+            "resume",
+            "stop",
+            "checkpoint",
+            "set_lr"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 10.0,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "CommandRequest",
+      "type": "object"
+    },
     "EventBatch": {
       "additionalProperties": false,
       "properties": {
@@ -18,6 +188,31 @@
         "events"
       ],
       "title": "EventBatch",
+      "type": "object"
+    },
+    "IngestResult": {
+      "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "integer"
+        },
+        "steps_logged": {
+          "title": "Steps Logged",
+          "type": "integer"
+        },
+        "commands": {
+          "items": {
+            "$ref": "#/$defs/RunCommand"
+          },
+          "title": "Commands",
+          "type": "array"
+        }
+      },
+      "required": [
+        "accepted",
+        "steps_logged"
+      ],
+      "title": "IngestResult",
       "type": "object"
     },
     "LoggedStep": {
@@ -57,6 +252,17 @@
           },
           "title": "Selected Activations",
           "type": "object"
+        },
+        "health": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StepHealth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -65,6 +271,140 @@
         "metrics"
       ],
       "title": "LoggedStep",
+      "type": "object"
+    },
+    "ParameterHealth": {
+      "additionalProperties": false,
+      "description": "One module that owns parameters, measured right after an optimizer step.",
+      "properties": {
+        "grad_norm": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grad Norm"
+        },
+        "weight_norm": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weight Norm"
+        },
+        "update_ratio": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Update Ratio"
+        },
+        "parameters": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Parameters",
+          "type": "integer"
+        }
+      },
+      "title": "ParameterHealth",
+      "type": "object"
+    },
+    "RunCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {
+          "minimum": 1,
+          "title": "Command Id",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "pause",
+            "resume",
+            "stop",
+            "checkpoint",
+            "set_lr"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "applied",
+            "rejected",
+            "expired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "number"
+        },
+        "resolved_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved At"
+        }
+      },
+      "required": [
+        "command_id",
+        "kind",
+        "status",
+        "created_at"
+      ],
+      "title": "RunCommand",
       "type": "object"
     },
     "RunCreate": {
@@ -96,6 +436,21 @@
           ],
           "default": null,
           "title": "Model Id"
+        },
+        "controls": {
+          "items": {
+            "enum": [
+              "pause",
+              "resume",
+              "stop",
+              "checkpoint",
+              "set_lr"
+            ],
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Controls",
+          "type": "array"
         }
       },
       "required": [
@@ -128,7 +483,8 @@
         "status": {
           "enum": [
             "completed",
-            "failed"
+            "failed",
+            "cancelled"
           ],
           "title": "Status",
           "type": "string"
@@ -179,7 +535,8 @@
           "enum": [
             "running",
             "completed",
-            "failed"
+            "failed",
+            "cancelled"
           ],
           "title": "Status",
           "type": "string"
@@ -207,6 +564,43 @@
         "last_event_at": {
           "title": "Last Event At",
           "type": "number"
+        },
+        "controls": {
+          "items": {
+            "enum": [
+              "pause",
+              "resume",
+              "stop",
+              "checkpoint",
+              "set_lr"
+            ],
+            "type": "string"
+          },
+          "title": "Controls",
+          "type": "array"
+        },
+        "paused": {
+          "title": "Paused",
+          "type": "boolean"
+        },
+        "learning_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Learning Rate"
+        },
+        "pending_commands": {
+          "title": "Pending Commands",
+          "type": "integer"
+        },
+        "alerts": {
+          "title": "Alerts",
+          "type": "integer"
         }
       },
       "required": [
@@ -219,7 +613,12 @@
         "step",
         "steps_logged",
         "created_at",
-        "last_event_at"
+        "last_event_at",
+        "controls",
+        "paused",
+        "learning_rate",
+        "pending_commands",
+        "alerts"
       ],
       "title": "RunInfo",
       "type": "object"
@@ -238,6 +637,80 @@
         "runs"
       ],
       "title": "RunList",
+      "type": "object"
+    },
+    "StepHealth": {
+      "additionalProperties": false,
+      "description": "Training-health statistics measured by the script for one step.",
+      "properties": {
+        "grad_norm": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grad Norm"
+        },
+        "learning_rate": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Learning Rate"
+        },
+        "nonfinite_grads": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Nonfinite Grads",
+          "type": "integer"
+        },
+        "nonfinite_metrics": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 16,
+          "title": "Nonfinite Metrics",
+          "type": "array"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ParameterHealth"
+          },
+          "maxProperties": 32,
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "activations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ActivationHealth"
+          },
+          "maxProperties": 32,
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Activations",
+          "type": "object"
+        }
+      },
+      "title": "StepHealth",
       "type": "object"
     }
   },

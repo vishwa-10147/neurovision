@@ -75,7 +75,7 @@ class TestLifecycle:
 
         response = log(client, run_id, token, [step(1), step(2)])
         assert response.status_code == 202
-        assert response.json() == {"accepted": 2, "steps_logged": 2}
+        assert response.json() == {"accepted": 2, "steps_logged": 2, "commands": []}
         finished = client.post(
             f"/api/v1/runs/{run_id}/finish",
             json={"status": "completed"},
@@ -152,7 +152,7 @@ class TestLifecycle:
         run_id, token = create(client)
         response = log(client, run_id, token, [])
         assert response.status_code == 202
-        assert response.json() == {"accepted": 0, "steps_logged": 0}
+        assert response.json() == {"accepted": 0, "steps_logged": 0, "commands": []}
 
 
 class TestWriteToken:
@@ -344,3 +344,211 @@ def test_shared_schema_example_is_valid() -> None:
 
     path = SHARED_SCHEMAS_DIR / "examples" / "external-run.events.json"
     EventBatch.model_validate(json.loads(path.read_text(encoding="utf-8")))
+
+
+# Health alerts and two-way control (ADR 0008) --------------------------------
+
+ALL_CONTROLS = ["pause", "resume", "stop", "checkpoint", "set_lr"]
+
+
+def command(client: TestClient, run_id: str, kind: str, **extra: Any) -> Any:
+    return client.post(f"/api/v1/runs/{run_id}/commands", json={"kind": kind, **extra})
+
+
+def ack(
+    client: TestClient, run_id: str, token: str, command_id: int, **body: Any
+) -> Any:
+    return client.post(
+        f"/api/v1/runs/{run_id}/commands/{command_id}/ack",
+        json={"status": "applied", **body},
+        headers=auth(token),
+    )
+
+
+def finish(
+    client: TestClient, run_id: str, token: str, status: str = "completed"
+) -> Any:
+    return client.post(
+        f"/api/v1/runs/{run_id}/finish", json={"status": status}, headers=auth(token)
+    )
+
+
+def of_type(events: list[dict[str, Any]], event_type: str) -> list[dict[str, Any]]:
+    return [e for e in events if e["event_type"] == event_type]
+
+
+class TestControls:
+    def test_runs_are_not_controllable_by_default(self, client: TestClient) -> None:
+        run_id, _ = create(client)
+        info = client.get(f"/api/v1/runs/{run_id}").json()
+        assert info["controls"] == [] and info["paused"] is False
+        response = command(client, run_id, "pause")
+        assert response.status_code == 409
+        assert "control=True" in response.json()["error"]["message"]
+
+    def test_command_lifecycle_is_streamed(self, client: TestClient) -> None:
+        run_id, token = create(client, controls=ALL_CONTROLS)
+        issued = command(client, run_id, "pause")
+        assert issued.status_code == 202
+        assert issued.json()["status"] == "pending"
+        assert issued.json()["command_id"] == 1
+
+        # The script sees it both by polling and on its next event batch.
+        polled = client.get(f"/api/v1/runs/{run_id}/commands", headers=auth(token))
+        assert [c["kind"] for c in polled.json()["commands"]] == ["pause"]
+        logged = log(client, run_id, token, [step(1)])
+        assert [c["command_id"] for c in logged.json()["commands"]] == [1]
+
+        answered = ack(client, run_id, token, 1, paused=True, message="Paused.")
+        assert answered.status_code == 200
+        assert answered.json()["status"] == "applied"
+        info = client.get(f"/api/v1/runs/{run_id}").json()
+        assert info["paused"] is True and info["pending_commands"] == 0
+        pending = client.get(f"/api/v1/runs/{run_id}/commands", headers=auth(token))
+        assert pending.json() == {"commands": []}
+        assert ack(client, run_id, token, 1).status_code == 409  # Answered once.
+
+        finish(client, run_id, token)
+        updates = of_type(stream(client, run_id), "run.command")
+        assert [(u["command"]["status"], u["paused"]) for u in updates] == [
+            ("pending", False),
+            ("applied", True),
+        ]
+        assert updates[1]["command"]["message"] == "Paused."
+
+    def test_set_lr_needs_a_valid_value(self, client: TestClient) -> None:
+        run_id, token = create(client, controls=["pause", "resume", "stop", "set_lr"])
+        assert command(client, run_id, "set_lr").status_code == 422
+        assert command(client, run_id, "set_lr", value=-1).status_code == 422
+        assert command(client, run_id, "set_lr", value=50).status_code == 422
+        assert command(client, run_id, "pause", value=1).status_code == 422
+        cid = command(client, run_id, "set_lr", value=0.001).json()["command_id"]
+        ack(client, run_id, token, cid, learning_rate=0.001)
+        assert client.get(f"/api/v1/runs/{run_id}").json()["learning_rate"] == 0.001
+
+    def test_only_enabled_commands_are_accepted(self, client: TestClient) -> None:
+        run_id, _ = create(client, controls=["pause", "resume", "stop"])
+        assert command(client, run_id, "checkpoint").status_code == 409
+        assert command(client, run_id, "stop").status_code == 202
+
+    def test_pending_command_cap(self, client: TestClient) -> None:
+        run_id, _ = create(client, controls=ALL_CONTROLS)
+        for _ in range(16):
+            assert command(client, run_id, "checkpoint").status_code == 202
+        assert command(client, run_id, "checkpoint").status_code == 429
+
+    def test_script_endpoints_need_the_token(self, client: TestClient) -> None:
+        run_id, _ = create(client, controls=ALL_CONTROLS)
+        cid = command(client, run_id, "pause").json()["command_id"]
+        assert client.get(f"/api/v1/runs/{run_id}/commands").status_code == 401
+        assert ack(client, run_id, "wrong-token", cid).status_code == 403
+
+    def test_rejections_are_recorded(self, client: TestClient) -> None:
+        run_id, token = create(client, controls=ALL_CONTROLS)
+        cid = command(client, run_id, "resume").json()["command_id"]
+        response = ack(
+            client, run_id, token, cid, status="rejected", message="Not paused."
+        )
+        assert response.json()["status"] == "rejected"
+
+    def test_pending_commands_expire_when_the_run_ends(
+        self, client: TestClient
+    ) -> None:
+        run_id, token = create(client, controls=ALL_CONTROLS)
+        command(client, run_id, "checkpoint")
+        finish(client, run_id, token)
+        updates = of_type(stream(client, run_id), "run.command")
+        assert updates[-1]["command"]["status"] == "expired"
+        assert command(client, run_id, "pause").status_code == 409
+
+    def test_a_stopped_run_finishes_as_cancelled(self, client: TestClient) -> None:
+        run_id, token = create(client, controls=ALL_CONTROLS)
+        log(client, run_id, token, [step(1), step(2)])
+        cid = command(client, run_id, "stop").json()["command_id"]
+        ack(client, run_id, token, cid)
+        assert (
+            finish(client, run_id, token, "cancelled").json()["status"] == "cancelled"
+        )
+        assert stream(client, run_id)[-1] == {
+            "schema_version": "1.0",
+            "event_type": "training.cancelled",
+            "job_id": run_id,
+            "step": 2,
+        }
+
+
+def healthy(n: int, grad_norm: float = 1.0) -> dict[str, Any]:
+    return step(
+        n,
+        health={
+            "grad_norm": grad_norm,
+            "learning_rate": 0.01,
+            "parameters": {
+                "fc1": {
+                    "grad_norm": grad_norm,
+                    "weight_norm": 3.0,
+                    "update_ratio": 1e-3,
+                    "parameters": 40,
+                }
+            },
+            "activations": {
+                "relu": {"kind": "relu", "mean": 0.2, "std": 0.3, "dead_fraction": 0.1}
+            },
+        },
+    )
+
+
+class TestHealth:
+    def test_health_is_streamed_and_learning_rate_recorded(
+        self, client: TestClient
+    ) -> None:
+        run_id, token = create(client)
+        assert log(client, run_id, token, [healthy(1)]).status_code == 202
+        assert client.get(f"/api/v1/runs/{run_id}").json()["learning_rate"] == 0.01
+        finish(client, run_id, token)
+        (logged,) = of_type(stream(client, run_id), "training.step")
+        assert logged["health"]["parameters"]["fc1"]["update_ratio"] == 1e-3
+        assert logged["health"]["activations"]["relu"]["dead_fraction"] == 0.1
+
+    def test_exploding_gradients_raise_one_alert(self, client: TestClient) -> None:
+        run_id, token = create(client)
+        norms = [1.0, 1.0, 1.0, 1.0, 1.0, 80.0, 90.0]
+        log(client, run_id, token, [healthy(i + 1, n) for i, n in enumerate(norms)])
+        assert client.get(f"/api/v1/runs/{run_id}").json()["alerts"] == 1
+        finish(client, run_id, token)
+        (alert,) = of_type(stream(client, run_id), "run.alert")
+        assert alert["alert"]["kind"] == "exploding_gradients"
+        assert alert["alert"]["step"] == 6 and alert["alert"]["alert_id"] == 1
+
+    def test_nan_loss_reported_by_name_is_critical(self, client: TestClient) -> None:
+        run_id, token = create(client)
+        log(client, run_id, token, [step(1, health={"nonfinite_metrics": ["loss"]})])
+        finish(client, run_id, token, "failed")
+        (alert,) = of_type(stream(client, run_id), "run.alert")
+        assert alert["alert"]["severity"] == "critical"
+        assert alert["alert"]["kind"] == "non_finite_loss"
+
+    def test_rejects_out_of_range_health(self, client: TestClient) -> None:
+        run_id, token = create(client)
+        dead = {"kind": "relu", "mean": 0, "std": 1, "dead_fraction": 1.5}
+        bad = step(1, health={"activations": {"r": dead}})
+        assert log(client, run_id, token, [bad]).status_code == 422
+        too_many = step(1, health={"parameters": {f"l{i}": {} for i in range(33)}})
+        assert log(client, run_id, token, [too_many]).status_code == 422
+
+    def test_history_keeps_layer_details_only_for_recent_steps(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(external_runs, "DETAILED_HEALTH_STEPS", 2)
+        run_id, token = create(client)
+        log(client, run_id, token, [healthy(i) for i in range(1, 5)])
+        finish(client, run_id, token)
+        steps = of_type(stream(client, run_id), "training.step")
+        assert [bool(s["health"]["parameters"]) for s in steps] == [
+            False,
+            False,
+            True,
+            True,
+        ]
+        # The global numbers stay for trend charts.
+        assert all(s["health"]["grad_norm"] == 1.0 for s in steps)

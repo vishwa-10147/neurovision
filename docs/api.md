@@ -194,9 +194,12 @@ endpoints; see [live-runs.md](live-runs.md). Bodies follow
 ```
 
 `name` 1–80 characters, `total_epochs` 1–1,000,000, optional `model_id`
-of a model already in NeuroVision (`422` if unknown). `201 Created`
-returns `{"run": <RunInfo>, "write_token": "…"}`. The token is returned
-only here. `429` when 8 runs are already active.
+of a model already in NeuroVision (`422` if unknown), and optional
+`controls`: the commands the script will apply, any of `pause`,
+`resume`, `stop`, `checkpoint`, `set_lr` (empty by default: the run
+cannot be controlled). `201 Created` returns
+`{"run": <RunInfo>, "write_token": "…"}`. The token is returned only
+here. `429` when 8 runs are already active.
 
 ### `POST /runs/{run_id}/events`
 
@@ -213,23 +216,70 @@ Each step follows the `training.step` bounds (≤ 16 finite metrics,
 ≤ 8 layers × 256 finite values). Steps must increase and epochs must
 not decrease across the run (`422` with the offending field). The whole
 batch is validated before any of it is published. An empty `events`
-list is a heartbeat. `202` returns `{"accepted", "steps_logged"}`.
-`409` once the run has finished or has logged 10,000 steps.
+list is a heartbeat. `202` returns `{"accepted", "steps_logged",
+"commands"}`, where `commands` are the run's pending commands (see
+below). `409` once the run has finished or has logged 10,000 steps.
+
+A step may carry optional **`health`** statistics (`StepHealth`,
+ADR 0008), all finite and non-negative unless noted:
+
+| Field | Meaning |
+|-------|---------|
+| `grad_norm`, `learning_rate` | total gradient norm, optimizer learning rate |
+| `nonfinite_grads` | number of NaN/∞ gradient values |
+| `nonfinite_metrics` | names of metrics that were NaN/∞ (≤ 16) |
+| `parameters` | ≤ 32 groups: `{grad_norm, weight_norm, update_ratio, parameters}` |
+| `activations` | ≤ 32 layers: `{kind, mean, std, dead_fraction, saturated_fraction}`; `kind` is `relu`, `tanh`, `sigmoid` or `other`; fractions in [0, 1] |
+
+The server's health rules turn these (and the `loss` / `val_loss`
+metrics) into `run.alert` events; the rules and thresholds are listed in
+[ADR 0008](decisions/0008-run-health-and-controls.md). A run publishes
+at most 200 alerts, then one `alerts_suppressed` notice. In the replay
+history, per-layer details are kept for the latest 200 steps that had
+them; older steps keep only the global numbers.
 
 ### `POST /runs/{run_id}/finish`
 
 Same token. `{"status": "completed"}` publishes `training.completed`
 with the last logged metrics; `{"status": "failed", "message": "…"}`
-publishes `training.failed` (message ≤ 500 characters).
+publishes `training.failed` (message ≤ 500 characters);
+`{"status": "cancelled"}` (a script that stopped because of a `stop`
+command) publishes `training.cancelled`. Pending commands expire.
 
 ### `GET /runs` and `GET /runs/{run_id}`
 
 `RunInfo` for each retained run, newest first: `run_id`, `name`,
-`model_id`, `status` (`running` | `completed` | `failed`),
-`total_epochs`, `epoch`, `step`, `steps_logged`, `created_at`, and
-`last_event_at` (Unix seconds). Tokens are never included. A run with
-no events or heartbeats for 5 minutes is marked `failed` when the API
-is next accessed.
+`model_id`, `status` (`running` | `completed` | `failed` |
+`cancelled`), `total_epochs`, `epoch`, `step`, `steps_logged`,
+`created_at`, `last_event_at` (Unix seconds), `controls`, `paused`,
+`learning_rate` (as last reported by the script), `pending_commands`,
+and `alerts`. Tokens are never included. A run with no events or
+heartbeats for 5 minutes is marked `failed` when the API is next
+accessed.
+
+### Run commands
+
+Two-way control for runs whose script opted in (`controls`, ADR 0008).
+
+-   **`POST /runs/{run_id}/commands`** (from the dashboard; no token):
+    `{"kind": "pause" | "resume" | "stop" | "checkpoint" | "set_lr",
+    "value": <learning rate, set_lr only>}`. `set_lr` needs a finite
+    `value` in (0, 10]; other kinds take none (`422`). `202` returns the
+    `RunCommand` `{command_id, kind, value, status: "pending", message,
+    created_at, resolved_at}`. `409` if the run is not running or does not
+    accept that kind; `429` when 16 commands are already pending.
+-   **`GET /runs/{run_id}/commands`** (script; write token): the pending
+    commands, `{"commands": [...]}`. They also ride on every event-batch
+    response.
+-   **`POST /runs/{run_id}/commands/{command_id}/ack`** (script; write
+    token): `{"status": "applied" | "rejected", "message": "…",
+    "paused": bool, "learning_rate": number}`. Updates the run's
+    `paused` and `learning_rate`. `404` for an unknown command, `409` if
+    it was already answered or expired.
+
+Every change of a command (issued, applied, rejected, expired) is
+published on the run's WebSocket as a `run.command` event with the
+command and the run's `paused` / `learning_rate` after the change.
 
 ## `POST /import/onnx?filename=…`
 

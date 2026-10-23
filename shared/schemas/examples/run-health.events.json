@@ -1,0 +1,55 @@
+[
+  {
+    "schema_version": "1.0",
+    "event_type": "training.step",
+    "job_id": "run_3f9a1c2b7d4e",
+    "epoch": 12,
+    "step": 12,
+    "metrics": { "loss": 0.2314, "accuracy": 0.9125, "val_loss": 0.2871 },
+    "selected_activations": {},
+    "health": {
+      "grad_norm": 0.8421,
+      "learning_rate": 0.003,
+      "nonfinite_grads": 0,
+      "nonfinite_metrics": [],
+      "parameters": {
+        "fc1": { "grad_norm": 0.6102, "weight_norm": 4.215, "update_ratio": 0.00094, "parameters": 96 },
+        "fc2": { "grad_norm": 0.5803, "weight_norm": 5.871, "update_ratio": 0.0011, "parameters": 1056 }
+      },
+      "activations": {
+        "act1": { "kind": "relu", "mean": 0.412, "std": 0.633, "dead_fraction": 0.0625, "saturated_fraction": null },
+        "act2": { "kind": "tanh", "mean": 0.051, "std": 0.744, "dead_fraction": null, "saturated_fraction": 0.12 }
+      }
+    }
+  },
+  {
+    "schema_version": "1.0",
+    "event_type": "run.command",
+    "job_id": "run_3f9a1c2b7d4e",
+    "command": {
+      "command_id": 3,
+      "kind": "set_lr",
+      "value": 0.001,
+      "status": "applied",
+      "message": "Learning rate set to 0.001. A scheduler may override it.",
+      "created_at": 1760953200.5,
+      "resolved_at": 1760953201.2
+    },
+    "paused": false,
+    "learning_rate": 0.001
+  },
+  {
+    "schema_version": "1.0",
+    "event_type": "run.alert",
+    "job_id": "run_3f9a1c2b7d4e",
+    "alert": {
+      "alert_id": 1,
+      "kind": "overfitting",
+      "severity": "warning",
+      "step": 12,
+      "layer": null,
+      "message": "Validation loss rose for 5 logged steps in a row (now 0.287) while training loss kept falling.",
+      "advice": "The model is starting to overfit: save a checkpoint now, and consider early stopping, more regularization, or more data."
+    }
+  }
+]

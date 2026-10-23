@@ -23,7 +23,17 @@ from app.schemas.inference import (
     TensorMapResponse,
     TensorViewRequest,
 )
-from app.schemas.runs import EventBatch, RunCreate, RunCreated, RunFinish, RunList
+from app.schemas.runs import (
+    CommandAck,
+    CommandList,
+    CommandRequest,
+    EventBatch,
+    IngestResult,
+    RunCreate,
+    RunCreated,
+    RunFinish,
+    RunList,
+)
 from app.schemas.training import (
     ForwardRequest,
     ForwardResponse,
@@ -106,7 +116,17 @@ def build_schemas() -> dict[str, dict[str, Any]]:
             models_json_schema(
                 [
                     (model, "validation")
-                    for model in (RunCreate, RunCreated, EventBatch, RunFinish, RunList)
+                    for model in (
+                        RunCreate,
+                        RunCreated,
+                        EventBatch,
+                        IngestResult,
+                        RunFinish,
+                        RunList,
+                        CommandRequest,
+                        CommandList,
+                        CommandAck,
+                    )
                 ]
             )[1],
         ),

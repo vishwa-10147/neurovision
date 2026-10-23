@@ -39,6 +39,18 @@ def test_example_event_is_valid() -> None:
     assert event.metrics["loss"] == pytest.approx(0.42)
 
 
+def test_example_health_and_control_events_are_valid() -> None:
+    events = [
+        training_event_adapter.validate_python(e)
+        for e in _load(EXAMPLES / "run-health.events.json")
+    ]
+    assert [e.event_type for e in events] == [
+        "training.step",
+        "run.command",
+        "run.alert",
+    ]
+
+
 def test_unknown_dimensions_stay_unknown() -> None:
     graph = ModelGraph.model_validate(_load(EXAMPLES / "onnx-import.graph.json"))
     custom = graph.nodes[1]

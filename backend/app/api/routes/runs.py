@@ -14,7 +14,11 @@ from pydantic import ValidationError
 from app.api.routes.models import Repository
 from app.core.errors import ApiError, invalid, not_found
 from app.schemas.errors import ErrorResponse
+from app.schemas.events import RunCommand
 from app.schemas.runs import (
+    CommandAck,
+    CommandList,
+    CommandRequest,
     EventBatch,
     IngestResult,
     RunCreate,
@@ -154,7 +158,11 @@ async def log_events(
         return run.ingest(batch.events, runs.now())
 
     accepted = await run_in_threadpool(ingest)
-    return IngestResult(accepted=accepted, steps_logged=run.steps_logged)
+    return IngestResult(
+        accepted=accepted,
+        steps_logged=run.steps_logged,
+        commands=run.pending_commands(),
+    )
 
 
 @router.post("/{run_id}/finish", response_model=RunInfo, responses=ERRORS)
@@ -167,3 +175,53 @@ def finish_run(
     run = _writable(runs, run_id, authorization)
     run.finish(body, runs.now())
     return run.info()
+
+
+# Two-way control (ADR 0008) -------------------------------------------------
+
+
+@router.post(
+    "/{run_id}/commands",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=RunCommand,
+    responses={**ERRORS, 429: {"model": ErrorResponse}},
+)
+def issue_command(run_id: RunId, body: CommandRequest, runs: Runs) -> RunCommand:
+    """Ask the script to pause, resume, stop, checkpoint, or change its learning rate.
+
+    The script applies the command at its next run.poll() and acknowledges
+    it; follow the outcome as run.command events on the run's WebSocket.
+    """
+    runs.expire_idle()
+    run = runs.get(run_id)
+    if run is None:
+        raise not_found(f"Run '{run_id}' was not found. It may have expired.")
+    return run.issue(body, runs.now())
+
+
+@router.get("/{run_id}/commands", response_model=CommandList, responses=ERRORS)
+def pending_commands(
+    run_id: RunId,
+    runs: Runs,
+    authorization: Annotated[str | None, Header()] = None,
+) -> CommandList:
+    """Pending commands, for the script (write token required)."""
+    run = _writable(runs, run_id, authorization)
+    return CommandList(commands=run.pending_commands())
+
+
+@router.post(
+    "/{run_id}/commands/{command_id}/ack",
+    response_model=RunCommand,
+    responses=ERRORS,
+)
+def acknowledge_command(
+    run_id: RunId,
+    command_id: Annotated[int, Path(ge=1)],
+    body: CommandAck,
+    runs: Runs,
+    authorization: Annotated[str | None, Header()] = None,
+) -> RunCommand:
+    """The script reports that it applied or rejected a command."""
+    run = _writable(runs, run_id, authorization)
+    return run.acknowledge(command_id, body, runs.now())

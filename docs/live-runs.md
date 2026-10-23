@@ -79,6 +79,97 @@ python sdk/examples/train_spiral.py --url http://127.0.0.1:8001
 A run accepts at most 10,000 logged steps. Logging every batch of a long
 run reaches that quickly, so log every N batches or once per epoch.
 
+## Training health and alerts
+
+`HealthMonitor` measures the signals that usually show a run going wrong,
+and the backend turns them into alerts in the **Health alerts** panel:
+
+``` python
+monitor = nv.HealthMonitor(
+    model,
+    optimizer=optimizer,          # reports the learning rate
+    probe_batch=x_val[:64],       # optional: activation statistics
+)
+...
+loss.backward()
+optimizer.step()
+run.log(epoch=epoch, metrics={"loss": loss, "val_loss": val_loss},
+        health=monitor.collect())   # right after optimizer.step()
+```
+
+`collect()` measures, per module that owns parameters, the **gradient
+norm**, **weight norm** and **update ratio** ‖Δw‖/‖w‖ since the previous
+`collect()` (around 1e-3 is a common target), plus the total gradient
+norm and the number of NaN/∞ gradients. With a `probe_batch`, it also
+measures each `nn.ReLU`/`ReLU6`/`LeakyReLU`/`ELU`/`GELU`/`SiLU`/`Tanh`/
+`Sigmoid` module's output: mean, std, the fraction of **dead units**
+(≤ 0 for every probe example, ReLU family) and of **saturated outputs**
+(tanh, sigmoid).
+
+-   Call it right after `optimizer.step()`, before the next
+    `zero_grad()`, as often as you log (it costs one pass over the
+    parameters, plus one forward pass on the probe batch).
+-   Update ratios keep one copy of the parameters on their device; pass
+    `track_updates=False` to skip them for very large models.
+-   Functional activations (`F.relu`) are not seen; a module used more
+    than once reports its last use. Models with more than 32 parameter
+    groups are grouped by top-level module.
+-   Even without a monitor, a metric that becomes NaN or infinite is
+    reported by name, so the dashboard raises a critical alert instead of
+    the value silently disappearing.
+
+Alerts fire once when a problem starts and again only after it has
+cleared: non-finite loss or gradients (critical), exploding or vanishing
+gradients, update ratios far too large (> 0.1) or small, dead or
+saturated units, loss spikes, plateaus, and overfitting (`val_loss`
+rising while `loss` falls). Each one quotes the measured numbers and
+suggests what to try. The rules are listed in
+[ADR 0008](decisions/0008-run-health-and-controls.md).
+
+## Controlling the run from the dashboard
+
+Opt in when starting the run, then call `run.poll()` in your loop:
+
+``` python
+def save():
+    torch.save(model.state_dict(), "checkpoint.pt")
+    return "checkpoint.pt"            # shown in the dashboard
+
+with nv.start_run("resnet18", total_epochs=EPOCHS, control=True,
+                  optimizer=optimizer, on_checkpoint=save) as run:
+    for epoch in range(1, EPOCHS + 1):
+        for xb, yb in train_loader:
+            if not run.poll():        # applies commands; blocks while paused
+                break                 # stop was requested
+            ...                       # train one batch
+        if run.should_stop:
+            break
+        run.log(...)
+# A stopped run finishes as "cancelled" (shown as Stopped).
+```
+
+| Button | Needs | What the script does |
+|--------|-------|----------------------|
+| Pause / Resume | `control=True` | `run.poll()` blocks until resumed (still answering the other commands) |
+| Stop | `control=True` | `run.poll()` returns `False` from then on; save and leave your loop |
+| Save checkpoint | `on_checkpoint=` | calls your function with no arguments in the training thread |
+| Learning rate → Set | `optimizer=` | sets `lr` on every parameter group (a scheduler that sets `lr` itself will override it) |
+
+-   Commands are **applied in your training thread**, at the `poll()`
+    you choose, never from a background thread in the middle of a step.
+    `poll()` only checks an in-memory queue, so call it once per batch.
+-   The client fetches commands about once a second (and with every
+    event batch); nothing connects *into* your machine.
+-   The dashboard shows each command as *Waiting for the script…* until
+    the script answers *Applied* or *Rejected* with a reason (for
+    example "The run is not paused." or "on_checkpoint raised OSError.").
+    Commands still pending when the run ends are marked *Expired*.
+
+**Security:** anyone who can reach the backend can send commands to a
+run that opted in, just as anyone can watch runs. Controls are therefore
+off by default; enable them only with the backend on localhost or a
+trusted network.
+
 ## Effect on training speed
 
 `run.log()` converts the values, appends them to a bounded in-memory
@@ -90,8 +181,9 @@ raises into your training code:
 
 -   Backend unreachable at start: a warning, then a run that ignores
     every call.
--   Values the server would reject (NaN, more than 16 metrics, …): dropped
-    with a one-time warning.
+-   Values the server would reject (more than 16 metrics, non-finite
+    activations, …): dropped with a one-time warning. A NaN or infinite
+    metric is not sent, but its name is reported so the dashboard alerts.
 -   The run is finished, full, or rejected by the server: logging stops
     with a warning.
 
@@ -122,6 +214,9 @@ create runs and watch them. Keep it on a trusted network.
 | Metrics / layers / values  | 16 / 8 / 256 per step, finite numbers only      |
 | Idle timeout               | 5 minutes without steps or heartbeats → run marked failed |
 | Retention                  | the 32 most recent finished runs, in memory     |
+| Health per step            | 32 parameter groups, 32 activation layers       |
+| Alerts per run             | 200, then one "suppressed" notice               |
+| Pending commands           | 16 per run; learning rate in (0, 10]            |
 
 The client sends an empty batch (a heartbeat) after 60 seconds without
 steps, so long epochs do not time out. If the script crashes without
@@ -129,4 +224,7 @@ finishing, the run is closed after the idle timeout with an explanation.
 Runs live in the backend's memory and are lost when it restarts.
 
 The REST endpoints are described in [api.md](api.md#external-runs) and
-the design in [ADR 0006](decisions/0006-external-runs.md).
+the design in [ADR 0006](decisions/0006-external-runs.md) and, for health
+and controls, [ADR 0008](decisions/0008-run-health-and-controls.md). The
+example [`sdk/examples/train_spiral.py`](../sdk/examples/train_spiral.py)
+uses all of it; run it with `--lr 0.5` to see alerts fire.

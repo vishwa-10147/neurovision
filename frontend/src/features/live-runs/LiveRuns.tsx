@@ -4,23 +4,28 @@ import { listRuns } from '../../api/runs'
 import { ErrorBoundary } from '../../components/states/ErrorBoundary'
 import { EmptyState, ErrorState, LoadingState } from '../../components/states/StateViews'
 import { formatValue } from '../../lib/values'
-import { useLiveRunStore, type WatchedRun } from '../../stores/liveRunStore'
+import { useLiveRunStore, type HealthPoint, type WatchedRun } from '../../stores/liveRunStore'
 import type { RunInfo, RunPoint } from '../../types/runs'
 import { ActivationStrips } from '../training-lab/TrainingResults'
 import { useEventStream } from '../training-lab/useTrainingStream'
+import { RunControls } from './RunControls'
+import { LayerHealth, RunAlerts } from './RunHealth'
 
 const RunMetricCharts = lazy(() => import('../training-lab/MetricCharts').then((m) => ({ default: m.RunMetricCharts })))
 
 /** How often the run list is refreshed while this view is open. */
 export const POLL_MS = 3000
 
-const STATUS_LABELS = { running: 'Running', completed: 'Completed', failed: 'Failed' } as const
+const STATUS_LABELS = { running: 'Running', completed: 'Completed', failed: 'Failed', cancelled: 'Stopped' } as const
 
 export function LiveRuns() {
   const { runs, error, refresh } = useRunList()
   const run = useLiveRunStore((s) => s.run)
   const points = useLiveRunStore((s) => s.points)
   const activations = useLiveRunStore((s) => s.activations)
+  const health = useLiveRunStore((s) => s.health)
+  const healthPoints = useLiveRunStore((s) => s.healthPoints)
+  const alerts = useLiveRunStore((s) => s.alerts)
   const stream = useLiveRunStore((s) => s.stream)
   const watch = useLiveRunStore((s) => s.watch)
   const applyEvents = useLiveRunStore((s) => s.applyEvents)
@@ -52,9 +57,12 @@ export function LiveRuns() {
                     onClick={() => watch(info)}
                   >
                     <span className="run-name">{info.name}</span>
-                    <span className={`status-badge status-${info.status}`}>{STATUS_LABELS[info.status]}</span>
+                    <span className={`status-badge status-${info.status}`}>
+                      {info.status === 'running' && info.paused ? 'Paused' : STATUS_LABELS[info.status]}
+                    </span>
                     <span className="muted run-meta">
                       Epoch {info.epoch} of {info.total_epochs} · {info.steps_logged.toLocaleString()} steps
+                      {info.alerts > 0 && ` · ${info.alerts} alert${info.alerts === 1 ? '' : 's'}`}
                     </span>
                   </button>
                 </li>
@@ -67,6 +75,10 @@ export function LiveRuns() {
             <>
               <div className="card">
                 <RunProgress run={run} points={points} />
+                <RunControls run={run} />
+                {run.status === 'cancelled' && (
+                  <p className="muted">The script stopped because it was asked to from NeuroVision.</p>
+                )}
                 {run.failure && <ErrorState error={new Error(run.failure)} />}
                 {stream === 'error' && (
                   <ErrorState error={new Error('Lost the live connection to this run.')} onRetry={reconnect} />
@@ -81,6 +93,17 @@ export function LiveRuns() {
                   </Suspense>
                 </ErrorBoundary>
               )}
+              <RunAlerts alerts={alerts} />
+              {healthPoints.length > 1 && (
+                <ErrorBoundary
+                  fallback={(_, reset) => <ErrorState error={new Error('The charts could not be shown.')} onRetry={reset} />}
+                >
+                  <Suspense fallback={<LoadingState label="Loading charts…" />}>
+                    <RunMetricCharts points={healthPoints.map(healthRow)} />
+                  </Suspense>
+                </ErrorBoundary>
+              )}
+              <LayerHealth health={health} />
               <ActivationStrips
                 activations={activations}
                 layerNames={{}}
@@ -96,6 +119,14 @@ export function LiveRuns() {
       </div>
     </section>
   )
+}
+
+/** Global health numbers as chartable series (one chart each). */
+function healthRow(point: HealthPoint): RunPoint {
+  const metrics: Record<string, number> = {}
+  if (point.grad_norm !== undefined) metrics['gradient norm'] = point.grad_norm
+  if (point.learning_rate !== undefined) metrics['learning rate'] = point.learning_rate
+  return { epoch: 0, step: point.step, metrics }
 }
 
 function useRunList() {
@@ -134,8 +165,8 @@ function RunProgress({ run, points }: { run: WatchedRun; points: RunPoint[] }) {
   return (
     <div className="progress">
       <h2 className="run-title">{run.name}</h2>
-      <span className={`status-badge status-${run.status}`} role="status">
-        {STATUS_LABELS[run.status]}
+      <span className={`status-badge status-${run.paused ? 'paused' : run.status}`} role="status">
+        {run.status === 'running' && run.paused ? 'Paused' : STATUS_LABELS[run.status]}
       </span>
       <div
         className="progress-bar"

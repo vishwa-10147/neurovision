@@ -2,6 +2,434 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://neurovision.local/schemas/training-event.schema.json",
   "$defs": {
+    "ActivationHealth": {
+      "additionalProperties": false,
+      "description": "One activation module's output on the script's fixed probe batch.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "relu",
+            "tanh",
+            "sigmoid",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "mean": {
+          "title": "Mean",
+          "type": "number"
+        },
+        "std": {
+          "minimum": 0,
+          "title": "Std",
+          "type": "number"
+        },
+        "dead_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dead Fraction"
+        },
+        "saturated_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Saturated Fraction"
+        }
+      },
+      "required": [
+        "kind",
+        "mean",
+        "std"
+      ],
+      "title": "ActivationHealth",
+      "type": "object"
+    },
+    "ParameterHealth": {
+      "additionalProperties": false,
+      "description": "One module that owns parameters, measured right after an optimizer step.",
+      "properties": {
+        "grad_norm": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grad Norm"
+        },
+        "weight_norm": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weight Norm"
+        },
+        "update_ratio": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Update Ratio"
+        },
+        "parameters": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Parameters",
+          "type": "integer"
+        }
+      },
+      "title": "ParameterHealth",
+      "type": "object"
+    },
+    "RunAlert": {
+      "additionalProperties": false,
+      "properties": {
+        "alert_id": {
+          "minimum": 1,
+          "title": "Alert Id",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "non_finite_loss",
+            "non_finite_gradients",
+            "exploding_gradients",
+            "vanishing_gradients",
+            "update_ratio_high",
+            "update_ratio_low",
+            "dead_units",
+            "saturated_units",
+            "loss_spike",
+            "loss_plateau",
+            "overfitting",
+            "alerts_suppressed"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "step": {
+          "minimum": 0,
+          "title": "Step",
+          "type": "integer"
+        },
+        "layer": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layer"
+        },
+        "message": {
+          "maxLength": 300,
+          "title": "Message",
+          "type": "string"
+        },
+        "advice": {
+          "maxLength": 300,
+          "title": "Advice",
+          "type": "string"
+        }
+      },
+      "required": [
+        "alert_id",
+        "kind",
+        "severity",
+        "step",
+        "message",
+        "advice"
+      ],
+      "title": "RunAlert",
+      "type": "object"
+    },
+    "RunAlertEvent": {
+      "additionalProperties": false,
+      "description": "The server's health rules flagged a problem in an external run.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "job_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Job Id",
+          "type": "string"
+        },
+        "event_type": {
+          "const": "run.alert",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "alert": {
+          "$ref": "#/$defs/RunAlert"
+        }
+      },
+      "required": [
+        "schema_version",
+        "job_id",
+        "event_type",
+        "alert"
+      ],
+      "title": "RunAlertEvent",
+      "type": "object"
+    },
+    "RunCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {
+          "minimum": 1,
+          "title": "Command Id",
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "pause",
+            "resume",
+            "stop",
+            "checkpoint",
+            "set_lr"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "applied",
+            "rejected",
+            "expired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "number"
+        },
+        "resolved_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved At"
+        }
+      },
+      "required": [
+        "command_id",
+        "kind",
+        "status",
+        "created_at"
+      ],
+      "title": "RunCommand",
+      "type": "object"
+    },
+    "RunCommandEvent": {
+      "additionalProperties": false,
+      "description": "A command was issued to an external run, or its status changed.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "job_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Job Id",
+          "type": "string"
+        },
+        "event_type": {
+          "const": "run.command",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "command": {
+          "$ref": "#/$defs/RunCommand"
+        },
+        "paused": {
+          "title": "Paused",
+          "type": "boolean"
+        },
+        "learning_rate": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Learning Rate"
+        }
+      },
+      "required": [
+        "schema_version",
+        "job_id",
+        "event_type",
+        "command",
+        "paused"
+      ],
+      "title": "RunCommandEvent",
+      "type": "object"
+    },
+    "StepHealth": {
+      "additionalProperties": false,
+      "description": "Training-health statistics measured by the script for one step.",
+      "properties": {
+        "grad_norm": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grad Norm"
+        },
+        "learning_rate": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Learning Rate"
+        },
+        "nonfinite_grads": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Nonfinite Grads",
+          "type": "integer"
+        },
+        "nonfinite_metrics": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 16,
+          "title": "Nonfinite Metrics",
+          "type": "array"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ParameterHealth"
+          },
+          "maxProperties": 32,
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "activations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ActivationHealth"
+          },
+          "maxProperties": 32,
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Activations",
+          "type": "object"
+        }
+      },
+      "title": "StepHealth",
+      "type": "object"
+    },
     "TrainingCancelled": {
       "additionalProperties": false,
       "properties": {
@@ -212,6 +640,17 @@
           },
           "title": "Selected Activations",
           "type": "object"
+        },
+        "health": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StepHealth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -228,6 +667,8 @@
   },
   "discriminator": {
     "mapping": {
+      "run.alert": "#/$defs/RunAlertEvent",
+      "run.command": "#/$defs/RunCommandEvent",
       "training.cancelled": "#/$defs/TrainingCancelled",
       "training.completed": "#/$defs/TrainingCompleted",
       "training.failed": "#/$defs/TrainingFailed",
@@ -251,6 +692,12 @@
     },
     {
       "$ref": "#/$defs/TrainingFailed"
+    },
+    {
+      "$ref": "#/$defs/RunCommandEvent"
+    },
+    {
+      "$ref": "#/$defs/RunAlertEvent"
     }
   ],
   "title": "TrainingEvent"

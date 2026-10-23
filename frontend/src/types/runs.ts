@@ -5,7 +5,10 @@
  */
 import { z } from 'zod'
 
-export const RUN_STATUSES = ['running', 'completed', 'failed'] as const
+import { COMMAND_KINDS, RunCommandSchema } from './events'
+
+/** "cancelled": the script stopped because NeuroVision asked it to. */
+export const RUN_STATUSES = ['running', 'completed', 'failed', 'cancelled'] as const
 export type RunStatus = (typeof RUN_STATUSES)[number]
 
 export const RunInfoSchema = z.object({
@@ -20,10 +23,18 @@ export const RunInfoSchema = z.object({
   /** Unix seconds. */
   created_at: z.number(),
   last_event_at: z.number(),
+  /** Commands the script accepts; empty when the run cannot be controlled. */
+  controls: z.array(z.enum(COMMAND_KINDS)).default([]),
+  paused: z.boolean().default(false),
+  learning_rate: z.number().nullable().default(null),
+  pending_commands: z.number().int().default(0),
+  alerts: z.number().int().default(0),
 })
 export type RunInfo = z.infer<typeof RunInfoSchema>
 
 export const RunListSchema = z.object({ runs: z.array(RunInfoSchema) })
+
+export { RunCommandSchema }
 
 /** One logged step as charted: any metrics the script chose to send. */
 export interface RunPoint {

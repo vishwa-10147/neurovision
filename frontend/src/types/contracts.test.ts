@@ -5,6 +5,7 @@ import exampleConfig from '../../../shared/schemas/examples/dense-network.config
 import denseGraph from '../../../shared/schemas/examples/dense-network.graph.json'
 import invalidCases from '../../../shared/schemas/examples/invalid-cases.json'
 import onnxGraph from '../../../shared/schemas/examples/onnx-import.graph.json'
+import healthEvents from '../../../shared/schemas/examples/run-health.events.json'
 import stepEvent from '../../../shared/schemas/examples/training-step.event.json'
 import { DenseNetworkConfigSchema } from './architecture'
 import { TrainingEventSchema } from './events'
@@ -38,6 +39,13 @@ describe('shared contract fixtures', () => {
   it('accepts the example training event', () => {
     const event = TrainingEventSchema.parse(stepEvent)
     expect(event.event_type).toBe('training.step')
+  })
+
+  it('accepts the example health, command and alert events', () => {
+    const events = healthEvents.map((e) => TrainingEventSchema.parse(e))
+    expect(events.map((e) => e.event_type)).toEqual(['training.step', 'run.command', 'run.alert'])
+    const step = events[0]
+    expect(step.event_type === 'training.step' && step.health?.parameters.fc1.update_ratio).toBe(0.00094)
   })
 
   it.each(invalidCases.map((c) => [c.description, c] as const))('rejects: %s', (_, testCase) => {

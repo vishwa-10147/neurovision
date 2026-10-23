@@ -47,6 +47,8 @@ Everything the UI shows as model behaviour comes from **actually computed values
 | **Training Lab** | Train on deterministic *moons*, *circles* or *spiral* data in a background job. Loss and accuracy charts update live, activations stream over a **WebSocket**, and you can cancel a run. |
 | **Model Explorer** | Import a trained **ONNX** model, either your own export from PyTorch or a built-in sample. Inspect its operator graph in 2D and 3D, its shapes and attributes, and its weights. **Run it** on inputs you choose in an isolated, time-limited ONNX Runtime worker to see real outputs and every operator's values. After a run you can view:<br>• CNN **feature maps** channel by channel<br>• **convolution filters**<br>• **attention heads** as query × key matrices. Attention is detected by pattern, and the UI labels it as such. |
 | **Live Runs** | Stream metrics and chosen layer activations from **your own** training script, using a one-file Python SDK. The script runs on your machine; NeuroVision only receives the small values you log. |
+| **Training health** | `HealthMonitor` measures, per layer, gradient and weight norms, update ratios ‖Δw‖/‖w‖, dead and saturated units, plus NaN/∞ gradients. The server turns them into **alerts**, for example exploding or vanishing gradients, dead ReLUs, NaN loss, loss spikes, plateaus and overfitting. Each alert quotes the measured numbers and gives advice. |
+| **Run controls** | With `control=True`, you can **pause, resume, stop, save a checkpoint or change the learning rate** of your own script from the dashboard. The script applies each command in its training thread at `run.poll()` and reports *applied* or *rejected* with a reason. |
 | **Dashboard** | Backend health check, plus the shared graph, event and error contracts. |
 
 *Learning Mode* is shown in the UI as planned. The 3D view requires WebGL.
@@ -125,7 +127,7 @@ neurovision/
 │   │   ├── services/         # ONNX import/runtime, training jobs, event stream, external runs, tensors
 │   │   ├── schemas/          # Pydantic models
 │   │   └── core/             # config, errors
-│   ├── tests/                # pytest suite (211 tests)
+│   ├── tests/                # pytest suite (254 tests)
 │   ├── requirements.txt  requirements-dev.txt  pyproject.toml
 │   └── .env.example
 ├── sdk/
@@ -248,7 +250,27 @@ with run:                                   # marks the run failed on an excepti
                 activations=probe.capture())
 ```
 
-A complete example is in [`sdk/examples/train_spiral.py`](sdk/examples/train_spiral.py), and the full guide is [`docs/live-runs.md`](docs/live-runs.md).
+### Health alerts and control from the dashboard
+
+```python
+monitor = nv.HealthMonitor(model, optimizer=optimizer, probe_batch=x_val[:64])
+
+with nv.start_run("resnet18", total_epochs=20, control=True,
+                  optimizer=optimizer, on_checkpoint=save_checkpoint) as run:
+    for epoch in range(1, 21):
+        for xb, yb in train_loader:
+            if not run.poll():          # applies Pause/Stop/LR/Checkpoint; blocks while paused
+                break
+            ...                         # forward, backward, optimizer.step()
+        if run.should_stop:
+            break
+        run.log(epoch=epoch, metrics={"loss": loss, "val_loss": val_loss},
+                health=monitor.collect())
+```
+
+Controls are off unless you pass `control=True`. Anyone who can reach the backend can send commands to a run that opted in, so keep the backend on localhost or a trusted network.
+
+A complete example is in [`sdk/examples/train_spiral.py`](sdk/examples/train_spiral.py). Run it with `--lr 0.5` to watch the alerts fire. The full guide is [`docs/live-runs.md`](docs/live-runs.md).
 
 > **Tip:** on Windows, use `127.0.0.1` rather than `localhost`. Otherwise each request can take about 2 s because Windows tries IPv6 first.
 
@@ -272,6 +294,9 @@ A complete example is in [`sdk/examples/train_spiral.py`](sdk/examples/train_spi
 | `POST /api/v1/runs/{run_id}/events` | Log a batch of steps (write token required) |
 | `POST /api/v1/runs/{run_id}/finish` | Mark an external run completed or failed |
 | `GET /api/v1/runs` | List external runs |
+| `POST /api/v1/runs/{run_id}/commands` | Pause, resume, stop, checkpoint or set the learning rate of a run that opted in |
+| `GET /api/v1/runs/{run_id}/commands` | Pending commands, for the script (write token required) |
+| `POST /api/v1/runs/{run_id}/commands/{command_id}/ack` | The script reports a command as applied or rejected |
 | `POST /api/v1/import/onnx?filename=…` | Import an ONNX file (raw body) for inspection |
 | `GET /api/v1/import/onnx/samples` | List built-in sample models |
 | `POST /api/v1/import/onnx/samples/{name}` | Import a sample model |
@@ -321,7 +346,7 @@ npm run build
 | [`docs/schemas.md`](docs/schemas.md) | Graph, event, error and health contracts; keeping Pydantic, JSON Schema and Zod in sync |
 | [`docs/importing-onnx.md`](docs/importing-onnx.md) | Exporting from PyTorch and importing, inspecting and running ONNX models |
 | [`docs/live-runs.md`](docs/live-runs.md) | Streaming your own training with the SDK |
-| [`docs/decisions/`](docs/decisions/) | Architecture decision records (0001–0007) |
+| [`docs/decisions/`](docs/decisions/) | Architecture decision records (0001–0008) |
 | [`PLAN.md`](PLAN.md) | Milestones and acceptance criteria |
 | [`SKILLS.md`](SKILLS.md) | Engineering standards and skills checklist |
 
@@ -352,6 +377,7 @@ The project is built milestone by milestone, and each milestone leaves the repos
 | 5 | Safe ONNX import and graph inspection | ✅ |
 | 6 | Run imported models; stream your own training (Live Runs) | ✅ |
 | 7 | CNN feature maps, attention heads, filter views | ✅ |
+| — | Training health alerts and two-way run controls ([ADR 0008](docs/decisions/0008-run-health-and-controls.md)) | ✅ |
 | Next | Learning Mode, saved projects, deployment | planned |
 
 See [`PLAN.md`](PLAN.md) for the detailed tasks and acceptance criteria.

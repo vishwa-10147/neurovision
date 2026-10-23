@@ -274,3 +274,328 @@ def test_end_to_end_with_the_real_backend(live_server: str) -> None:
     assert info["status"] == "completed"
     assert info["steps_logged"] == 3 and info["epoch"] == 3
     assert run.dropped == 0
+
+
+# Health statistics and two-way control (ADR 0008) ----------------------------
+
+
+class ControlServer(FakeServer):
+    """A FakeServer that hands out queued commands and records acks."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.pending: list[dict[str, Any]] = []
+        self.acks: dict[int, dict[str, Any]] = {}
+
+    def issue(self, kind: str, value: float | None = None) -> int:
+        command_id = len(self.pending) + len(self.acks) + 1
+        self.pending.append(
+            {
+                "command_id": command_id,
+                "kind": kind,
+                "value": value,
+                "status": "pending",
+            }
+        )
+        return command_id
+
+    def __call__(
+        self, method: str, url: str, body: Any, headers: dict[str, str]
+    ) -> tuple[int, Any]:
+        if url.endswith("/commands") and method == "GET":
+            self.requests.append((method, url, body, headers))
+            return 200, {"commands": list(self.pending)}
+        if url.endswith("/ack"):
+            self.requests.append((method, url, body, headers))
+            command_id = int(url.split("/")[-2])
+            self.acks[command_id] = body
+            self.pending = [c for c in self.pending if c["command_id"] != command_id]
+            return 200, {}
+        return super().__call__(method, url, body, headers)
+
+    def wait_for_ack(self, command_id: int, timeout: float = 5.0) -> dict[str, Any]:
+        deadline = time.monotonic() + timeout
+        while command_id not in self.acks:
+            assert time.monotonic() < deadline, f"no ack for command {command_id}"
+            time.sleep(0.02)
+        return self.acks[command_id]
+
+
+@pytest.fixture
+def control_server() -> ControlServer:
+    return ControlServer()
+
+
+def controlled_run(server: ControlServer, **kwargs: Any) -> nv.Run:
+    return nv.start_run(
+        "ctl",
+        total_epochs=2,
+        transport=server,
+        control=True,
+        flush_interval=0.02,
+        control_interval=0.02,
+        **kwargs,
+    )
+
+
+def poll_until(run: nv.Run, condition: Any, timeout: float = 5.0) -> None:
+    deadline = time.monotonic() + timeout
+    while not condition():
+        assert time.monotonic() < deadline, "condition not reached"
+        run.poll()
+        time.sleep(0.01)
+
+
+def test_controls_are_declared_only_when_enabled(control_server: ControlServer) -> None:
+    optimizer = torch.optim.SGD(Net().parameters(), lr=0.1)
+    nv.start_run("plain", total_epochs=1, transport=control_server, optimizer=optimizer)
+    assert "controls" not in control_server.requests[0][2]
+    controlled_run(control_server, optimizer=optimizer, on_checkpoint=lambda: "a.pt")
+    assert control_server.requests[-1][2]["controls"] == [
+        "pause",
+        "resume",
+        "stop",
+        "set_lr",
+        "checkpoint",
+    ]
+
+
+def test_set_lr_and_checkpoint_apply_in_the_training_thread(
+    control_server: ControlServer,
+) -> None:
+    optimizer = torch.optim.Adam(Net().parameters(), lr=0.1)
+    saved: list[str] = []
+
+    def save() -> str:
+        saved.append(threading.current_thread().name)
+        return "epoch-1.pt"
+
+    run = controlled_run(control_server, optimizer=optimizer, on_checkpoint=save)
+    lr_id = control_server.issue("set_lr", 0.005)
+    ck_id = control_server.issue("checkpoint")
+    poll_until(run, lambda: run.commands_applied == 2)
+    assert optimizer.param_groups[0]["lr"] == 0.005
+    assert saved == [threading.current_thread().name]  # Not the client's thread.
+    assert control_server.wait_for_ack(lr_id) == {
+        "status": "applied",
+        "paused": False,
+        "learning_rate": 0.005,
+        "message": "Learning rate set to 0.005. A scheduler may override it.",
+    }
+    assert (
+        control_server.wait_for_ack(ck_id)["message"] == "Checkpoint saved: epoch-1.pt."
+    )
+    run.finish()
+
+
+def test_pause_blocks_poll_until_resume(control_server: ControlServer) -> None:
+    run = controlled_run(control_server)
+    run.log(epoch=1, metrics={"loss": 1.0})
+    pause_id = control_server.issue("pause")
+
+    def resume_soon() -> None:
+        # The pause is acknowledged while the training thread is blocked.
+        control_server.wait_for_ack(pause_id)
+        time.sleep(0.3)
+        control_server.issue("resume")
+
+    threading.Thread(target=resume_soon, daemon=True).start()
+    deadline = time.monotonic() + 5
+    while True:
+        started = time.monotonic()
+        assert run.poll() is True
+        blocked = time.monotonic() - started
+        if pause_id in control_server.acks:
+            break
+        assert time.monotonic() < deadline, "the pause never arrived"
+        time.sleep(0.01)
+    assert blocked >= 0.25  # The poll that paused waited for the resume.
+    assert not run.paused
+    assert control_server.acks[pause_id]["paused"] is True
+    run.finish()
+
+
+def test_stop_makes_poll_false_and_finishes_cancelled(
+    control_server: ControlServer,
+) -> None:
+    with controlled_run(control_server) as run:
+        control_server.issue("stop")
+        poll_until(run, lambda: run.stop_requested)
+        assert run.poll() is False and run.should_stop
+    assert control_server.finish_body()["status"] == "cancelled"
+
+
+def test_unsupported_or_invalid_commands_are_rejected(
+    control_server: ControlServer,
+) -> None:
+    run = controlled_run(control_server)  # No optimizer, no checkpoint function.
+    resume_id = control_server.issue("resume")
+    lr_id = control_server.issue("set_lr", 0.1)
+    poll_until(run, lambda: len(control_server.acks) == 2)
+    assert control_server.acks[resume_id]["status"] == "rejected"
+    assert control_server.acks[resume_id]["message"] == "The run is not paused."
+    assert control_server.acks[lr_id]["status"] == "rejected"
+    run.finish()
+
+
+def test_failing_checkpoint_reports_only_the_error_type(
+    control_server: ControlServer,
+) -> None:
+    def broken() -> None:
+        raise OSError("disk full at /home/me/secret")
+
+    run = controlled_run(control_server, on_checkpoint=broken)
+    cid = control_server.issue("checkpoint")
+    poll_until(run, lambda: cid in control_server.acks)
+    assert control_server.acks[cid]["message"] == "on_checkpoint raised OSError."
+    run.finish()
+
+
+def test_poll_is_free_without_controls(server: FakeServer) -> None:
+    run = nv.start_run("plain", total_epochs=1, transport=server)
+    assert run.poll() is True
+    run.finish()
+    assert not any(url.endswith("/commands") for _, url, _, _ in server.requests)
+
+
+def test_non_finite_metrics_are_reported_by_name(server: FakeServer) -> None:
+    run = nv.start_run("nan", total_epochs=1, transport=server)
+    run.log(epoch=1, metrics={"loss": float("nan"), "accuracy": 0.5})
+    run.finish()
+    (event,) = server.events()
+    assert event["metrics"] == {"accuracy": 0.5}
+    assert event["health"]["nonfinite_metrics"] == ["loss"]
+
+
+class Deep(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.fc1 = nn.Linear(4, 8)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(8, 3)
+        self.tanh = nn.Tanh()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.tanh(self.fc2(self.relu(self.fc1(x))))
+
+
+def test_health_monitor_measures_gradients_and_updates() -> None:
+    torch.manual_seed(0)
+    model = Deep()
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+    monitor = nv.HealthMonitor(model, optimizer=optimizer)
+    x = torch.randn(16, 4)
+
+    first = monitor.collect()  # Before any step: weights only.
+    assert "grad_norm" not in first and first["parameters"]["fc1"]["parameters"] == 40
+    before = model.fc1.weight.detach().clone(), model.fc1.bias.detach().clone()
+
+    optimizer.zero_grad()
+    model(x).pow(2).mean().backward()
+    expected_grad = math.sqrt(
+        float(model.fc1.weight.grad.pow(2).sum() + model.fc1.bias.grad.pow(2).sum())
+    )
+    optimizer.step()
+    health = monitor.collect()
+
+    fc1 = health["parameters"]["fc1"]
+    assert fc1["grad_norm"] == pytest.approx(expected_grad, rel=1e-5)
+    weight, bias = model.fc1.weight.detach(), model.fc1.bias.detach()
+    weight_norm = math.sqrt(float(weight.pow(2).sum() + bias.pow(2).sum()))
+    update = math.sqrt(
+        float((weight - before[0]).pow(2).sum() + (bias - before[1]).pow(2).sum())
+    )
+    assert fc1["weight_norm"] == pytest.approx(weight_norm, rel=1e-5)
+    assert fc1["update_ratio"] == pytest.approx(update / weight_norm, rel=1e-4)
+    total = math.sqrt(sum(g["grad_norm"] ** 2 for g in health["parameters"].values()))
+    assert health["grad_norm"] == pytest.approx(total, rel=1e-6)
+    assert health["learning_rate"] == 0.1 and health["nonfinite_grads"] == 0
+
+
+def test_health_monitor_finds_dead_and_saturated_units() -> None:
+    model = Deep()
+    with torch.no_grad():
+        # Half of fc1's units can never be positive: dead ReLUs.
+        model.fc1.weight[:4] = 0
+        model.fc1.bias[:4] = -1
+        # Huge outputs saturate tanh.
+        model.fc2.weight.mul_(1000)
+    monitor = nv.HealthMonitor(model, probe_batch=torch.randn(32, 4))
+    health = monitor.collect()
+    assert health["activations"]["relu"]["dead_fraction"] == pytest.approx(
+        0.5, abs=0.13
+    )
+    assert health["activations"]["relu"]["dead_fraction"] >= 0.5
+    assert health["activations"]["tanh"]["saturated_fraction"] > 0.5
+    assert model.training and not model.relu._forward_hooks
+
+
+def test_health_monitor_counts_non_finite_gradients() -> None:
+    model = Deep()
+    model(torch.randn(2, 4)).sum().backward()
+    with torch.no_grad():
+        model.fc2.weight.grad[0, 0] = float("nan")
+    health = nv.HealthMonitor(model).collect()
+    assert health["nonfinite_grads"] == 1
+    assert "grad_norm" not in health["parameters"]["fc2"]
+
+
+def test_health_monitor_merges_many_groups() -> None:
+    model = nn.Sequential(
+        *[nn.Sequential(nn.Linear(2, 2), nn.Linear(2, 2)) for _ in range(20)]
+    )
+    monitor = nv.HealthMonitor(model)
+    groups = monitor.collect()["parameters"]
+    assert len(groups) == 20  # 40 Linear layers merged into their 20 blocks.
+    assert sum(g["parameters"] for g in groups.values()) == 40 * 6
+
+
+def test_health_end_to_end_with_controls(live_server: str) -> None:
+    torch.manual_seed(0)
+    model = Deep()
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.05)
+    monitor = nv.HealthMonitor(
+        model, optimizer=optimizer, probe_batch=torch.randn(8, 4)
+    )
+    x, y = torch.randn(32, 4), torch.randn(32, 3)
+    run = nv.start_run(
+        "health-e2e",
+        total_epochs=50,
+        url=live_server,
+        control=True,
+        optimizer=optimizer,
+        control_interval=0.05,
+        flush_interval=0.05,
+    )
+
+    def post(path: str, body: Any) -> Any:
+        request = urllib.request.Request(
+            f"{live_server}/api/v1/runs/{run.run_id}{path}",
+            data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request) as response:
+            return json.loads(response.read())
+
+    post("/commands", {"kind": "set_lr", "value": 0.01})
+    epoch = 0
+    deadline = time.monotonic() + 10
+    while run.poll():
+        epoch += 1
+        optimizer.zero_grad()
+        nn.functional.mse_loss(model(x), y).backward()
+        optimizer.step()
+        run.log(epoch=epoch, metrics={"loss": 0.5}, health=monitor.collect())
+        if epoch == 3:
+            post("/commands", {"kind": "stop"})
+        assert time.monotonic() < deadline, "the stop command never arrived"
+        time.sleep(0.02)
+    run.finish()
+    with urllib.request.urlopen(f"{live_server}/api/v1/runs/{run.run_id}") as resp:
+        info = json.loads(resp.read())
+    assert info["status"] == "cancelled"
+    assert info["learning_rate"] == 0.01 and optimizer.param_groups[0]["lr"] == 0.01
+    assert info["pending_commands"] == 0
+    # A constant loss for 20 logged steps is a plateau; nothing else is wrong.
+    assert epoch < 20 or info["alerts"] >= 1
