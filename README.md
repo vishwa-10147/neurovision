@@ -1,132 +1,167 @@
 # NeuroVision
 
-**NeuroVision** is an interactive neural-network visualization platform
-for exploring network architecture, observing signal propagation,
-learning how training changes model parameters, and inspecting supported
-real trained models.
+### Interactive 2D/3D neural-network visualization — build, train and look inside real models
 
-> Status: Early development. Implemented so far:
->
-> -   **Architecture Studio**: build a dense network (validated limits,
->     ReLU/sigmoid/tanh), backed by a seeded PyTorch model and shown in
->     switchable 2D and 3D views with a synchronized inspector. Run a
->     forward pass to shade units by the values the model computes; the
->     inspector shows real activations, weights, biases, and gradients.
-> -   **Training Lab**: train on deterministic moons, circles, or spiral
->     data in a background job, with live loss and accuracy charts and
->     streamed activations over a WebSocket, plus cancellation.
-> -   **Model Explorer**: import a trained ONNX model (e.g. exported from
->     your own PyTorch project) or a built-in sample, and inspect its
->     operator graph in 2D and 3D, its shapes and attributes, and its
->     weights. **Run it** on inputs you choose in an isolated,
->     time-limited ONNX Runtime worker to see real outputs and every
->     operator's values. After a run, view CNN feature maps channel by
->     channel, convolution filters, and attention heads as query × key
->     matrices (attention is detected by pattern, and labeled as such).
->     See [docs/importing-onnx.md](docs/importing-onnx.md).
-> -   A dashboard with a backend health check, and shared graph, event,
->     and error contracts.
->
-> Learning Mode is shown in the UI as "planned". The 3D view needs WebGL. Features
-> described as planned are not considered implemented until their code
-> and tests exist.
+[![Frontend](https://img.shields.io/badge/React-TypeScript%20%C2%B7%20Vite-61dafb.svg)](frontend/)
+[![Backend](https://img.shields.io/badge/FastAPI-Python%203.12-009688.svg)](backend/)
+[![ML](https://img.shields.io/badge/PyTorch%20%C2%B7%20ONNX%20Runtime-ee4c2c.svg)](backend/app/ml/)
+[![Status](https://img.shields.io/badge/status-early%20development-orange.svg)](PLAN.md)
 
-## Vision
+**NeuroVision** is a web platform for exploring neural networks visually. You can:
 
-NeuroVision brings together two complementary experiences:
+- design a small network and see it in synchronized **2D and 3D** views;
+- train it and watch loss, accuracy and activations update **live**;
+- import a real trained **ONNX** model and inspect its graph, weights and per-operator values, including CNN feature maps, convolution filters and attention heads.
 
-1.  **Learning Lab:** Create small neural networks, run forward passes,
-    train them, and inspect real activations, weights, gradients, and
-    metrics.
-2.  **Model Explorer:** Import supported models, starting with ONNX, and
-    explore their graph structure, operators, tensor shapes, metadata,
-    and selected tensor values.
+Everything the UI shows as model behaviour comes from **actually computed values**, never from decorative animation.
 
-Both experiences use a shared normalized graph model so that the same
-model can be viewed in 2D and 3D.
+> **Author:** K. Vishwa (Kokkireni Vishwa) — [vishwa-10147](https://github.com/vishwa-10147)
 
-## Planned features
+---
 
--   2D architecture editor and graph renderer.
--   3D neural-network explorer with camera controls.
--   Synchronized node/edge selection and inspector.
--   Educational feedforward networks using PyTorch.
--   Real activation and gradient capture.
--   Training metrics and WebSocket event streaming.
--   ONNX graph import and inspection.
--   Bounded tensor summaries and slices.
--   Learning guides for dense networks, CNNs, and transformers.
--   Saved projects and deployment support in later milestones.
+## Contents
+
+- [Features](#features)
+- [Architecture](#architecture)
+- [Technology stack](#technology-stack)
+- [Repository layout](#repository-layout)
+- [Quick start (Windows PowerShell)](#quick-start-windows-powershell)
+- [Watch your own PyTorch training live](#watch-your-own-pytorch-training-live)
+- [Implemented API](#implemented-api)
+- [Quality checks](#quality-checks)
+- [Documentation](#documentation)
+- [Security](#security)
+- [Roadmap and status](#roadmap-and-status)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Features
+
+| Area | What you can do |
+|---|---|
+| **Architecture Studio** | Build a dense network within validated limits (ReLU / sigmoid / tanh). It is backed by a seeded PyTorch model and shown in switchable **2D and 3D** views with a synchronized inspector. Run a forward pass to shade units by their real computed values. The inspector shows real activations, weights, biases and gradients. |
+| **Training Lab** | Train on deterministic *moons*, *circles* or *spiral* data in a background job. Loss and accuracy charts update live, activations stream over a **WebSocket**, and you can cancel a run. |
+| **Model Explorer** | Import a trained **ONNX** model, either your own export from PyTorch or a built-in sample. Inspect its operator graph in 2D and 3D, its shapes and attributes, and its weights. **Run it** on inputs you choose in an isolated, time-limited ONNX Runtime worker to see real outputs and every operator's values. After a run you can view:<br>• CNN **feature maps** channel by channel<br>• **convolution filters**<br>• **attention heads** as query × key matrices. Attention is detected by pattern, and the UI labels it as such. |
+| **Live Runs** | Stream metrics and chosen layer activations from **your own** training script, using a one-file Python SDK. The script runs on your machine; NeuroVision only receives the small values you log. |
+| **Dashboard** | Backend health check, plus the shared graph, event and error contracts. |
+
+*Learning Mode* is shown in the UI as planned. The 3D view requires WebGL.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Frontend["Frontend (React + TypeScript)"]
+      Studio[Architecture Studio]
+      Lab[Training Lab]
+      Explorer[Model Explorer]
+      Live[Live Runs]
+      R2D["2D renderer (SVG)"]
+      R3D["3D renderer (Three.js)"]
+      Insp[Inspector]
+      Store[(Zustand store)]
+    end
+    subgraph Backend["Backend (FastAPI)"]
+      API[REST /api/v1]
+      WS[WebSocket events]
+      Edu["Educational nets (PyTorch)"]
+      Jobs[Training job manager]
+      Imp[Safe ONNX importer]
+      Worker["Isolated ONNX Runtime worker"]
+      Norm[Graph normalizer]
+      Tens[Bounded tensor access]
+    end
+    SDK["sdk/neurovision_client.py<br/>(your training script)"]
+    Studio & Lab & Explorer & Live --> Store
+    R2D & R3D & Insp --> Store
+    Store <--> API
+    Store <--> WS
+    API --> Edu --> Jobs --> WS
+    API --> Imp --> Norm
+    API --> Worker
+    API --> Tens
+    SDK --> API
+```
+
+Both model sources, the educational networks and imported ONNX models, feed one **shared normalized graph model**. The 2D and 3D views render the same data, and the renderers never depend on PyTorch or ONNX internals. Large tensors are kept out of the graph JSON and are served as bounded summaries or slices.
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full system design and [`docs/decisions/`](docs/decisions/) for why each piece was built the way it was.
+
+---
 
 ## Technology stack
 
-### Frontend
+| Layer | Tools |
+|---|---|
+| Frontend | React, TypeScript (strict), Vite, React Three Fiber / Three.js, Zustand, Recharts, Zod, Vitest + Testing Library, oxlint |
+| Backend | Python 3.12, FastAPI, Pydantic, Uvicorn, WebSockets |
+| ML | PyTorch, NumPy, ONNX, ONNX Runtime (in an isolated worker process) |
+| Quality | Pytest, HTTPX, Ruff |
+| Contracts | JSON Schema in `shared/schemas/`, mirrored by Pydantic and Zod |
 
--   React, TypeScript, Vite
--   React Three Fiber, Three.js
--   React Flow (`@xyflow/react`)
--   Zustand
--   Recharts
--   Zod
-
-### Backend
-
--   Python 3.12
--   FastAPI, Pydantic, Uvicorn
--   PyTorch, NumPy
--   ONNX, and ONNX Runtime (in an isolated worker process)
--   WebSockets
--   Pytest, HTTPX, Ruff
+---
 
 ## Repository layout
 
-``` text
+```text
 neurovision/
-├── frontend/             # React + TypeScript application
-├── backend/              # FastAPI and ML services
-├── shared/schemas/       # Graph and event contracts
-├── docs/                 # Design and API documentation
-├── tests/                # Cross-component tests
-├── PROMPT.md             # Master implementation prompt for coding agents
-├── ARCHITECTURE.md       # System design and boundaries
-├── PLAN.md               # Milestones and acceptance criteria
-└── SKILLS.md             # Required tools and engineering practices
+├── frontend/                 # React + TypeScript app (Vite)
+│   └── src/
+│       ├── features/         # architecture-studio, training-lab, model-import,
+│       │                     # live-runs, visualization-2d, visualization-3d, dashboard, planned
+│       ├── components/       # inspector, state views
+│       ├── stores/  api/  types/  hooks/  lib/
+│       └── test/
+├── backend/                  # FastAPI service
+│   ├── app/
+│   │   ├── api/routes/       # REST + WebSocket endpoints
+│   │   ├── ml/               # PyTorch educational networks, training
+│   │   ├── services/         # ONNX importer, ONNX Runtime worker, jobs, runs, tensor views
+│   │   ├── schemas/          # Pydantic models
+│   │   └── core/             # config, errors
+│   ├── tests/                # pytest suite (147 tests)
+│   ├── requirements.txt  requirements-dev.txt  pyproject.toml
+│   └── .env.example
+├── sdk/
+│   ├── neurovision_client.py # one-file client for streaming your own training
+│   └── examples/train_spiral.py
+├── shared/schemas/           # JSON Schemas for graph, events, errors, tensors (+ examples)
+├── docs/                     # API reference, guides, design decisions (ADRs)
+├── ARCHITECTURE.md           # System design and boundaries
+├── PLAN.md                   # Milestones and acceptance criteria
+├── SKILLS.md                 # Engineering standards and skills checklist
+└── PROMPT.md                 # Master build prompt used to drive the implementation
 ```
 
-Create files progressively; this tree describes the target organization,
-not a claim that every module already exists.
+---
 
-## Prerequisites
+## Quick start (Windows PowerShell)
 
--   Git
--   Node.js LTS and npm
--   Python 3.12
--   VS Code or another editor
--   Optional NVIDIA GPU and compatible PyTorch CUDA runtime for
-    accelerated training
+These steps were verified on Windows 11 with the following versions:
 
-Verify the installations:
+| Tool | Version |
+|---|---|
+| Node.js | 24 |
+| Python | 3.12.10 |
+| PyTorch | 2.14.1, CPU build |
+| onnx | 1.23.2 |
+| onnxruntime | 1.31.0 |
 
-``` powershell
-node --version
-npm --version
-python --version
-git --version
-```
-
-## Setup on Windows PowerShell
-
-The commands below were verified on Windows 11 with Node.js 24,
-Python 3.12.10, the CPU build of PyTorch 2.14.1, onnx 1.23.2, and
-onnxruntime 1.31.0. Only the dependencies the implemented features need
-are installed; React Flow is added when free-form editing needs it.
+**Prerequisites:**
+- Git
+- Node.js LTS and npm
+- Python 3.12
+- Optionally, an NVIDIA GPU with a matching PyTorch CUDA build
 
 ### 1. Backend
 
-From the repository root, install PyTorch first for your platform, then
-the pinned requirements:
+From the repository root:
 
-``` powershell
+```powershell
 cd backend
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -135,198 +170,206 @@ pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.1
 pip install -r requirements-dev.txt
 ```
 
-The CPU build is enough for the educational networks (each training run
-takes seconds). For a GPU build, pick the matching command at
-https://pytorch.org/get-started/locally/ instead; do not assume a
-locally installed CUDA toolkit determines the right package.
-`requirements.txt` pins `torch==2.14.1`, which local builds such as
-`2.14.1+cpu` satisfy. `requirements-dev.txt` adds the test and lint
-tools.
+The CPU build is enough for the educational networks, where each training run takes seconds. For a GPU build, use the matching command from <https://pytorch.org/get-started/locally/> instead. `requirements.txt` pins `torch==2.14.1`, which local builds such as `2.14.1+cpu` satisfy.
 
 ### 2. Frontend
 
 From the repository root:
 
-``` powershell
+```powershell
 cd frontend
 npm install
 ```
 
-### 3. Start the services
+### 3. Run
 
-Terminal A (backend):
-
-``` powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
+```powershell
+# Terminal A — backend
+cd backend; .\.venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload --port 8000
 ```
 
-Terminal B (frontend):
-
-``` powershell
+```powershell
+# Terminal B — frontend
 cd frontend
 npm run dev
 ```
 
-Local URLs:
+| URL | What |
+|---|---|
+| <http://localhost:5173> | NeuroVision app |
+| <http://localhost:8000/api/v1/health> | Health endpoint |
+| <http://localhost:8000/docs> | Interactive FastAPI docs |
 
--   Frontend: http://localhost:5173
--   Health endpoint: http://localhost:8000/api/v1/health
--   FastAPI interactive API docs: http://localhost:8000/docs
-
-The dashboard shows "Backend online" with the service version when the
-health check succeeds, and an error with startup instructions when it
-fails or does not answer within 5 seconds. It re-checks every 15
-seconds.
+The dashboard shows **Backend online** with the service version when the health check succeeds. If the check fails or doesn't answer within 5 seconds, it shows an error with startup instructions instead. It re-checks every 15 seconds.
 
 ### Using other ports
 
-If 8000 or 5173 is taken, point the two services at each other through
-environment variables (see `backend/.env.example` and
-`frontend/.env.example`). For example, backend on 8001 and frontend on
-5174:
+The two services find each other through environment variables; see `backend/.env.example` and `frontend/.env.example`.
 
-``` powershell
-# backend/
+```powershell
+# backend/ on 8001, allowing a frontend on 5174
 $env:NEUROVISION_CORS_ORIGINS = "http://localhost:5174"
 uvicorn app.main:app --reload --port 8001
 ```
 
-``` powershell
-# frontend/
+```powershell
+# frontend/ on 5174, talking to the backend on 8001
 $env:VITE_API_BASE_URL = "http://localhost:8001"
 npm run dev -- --port 5174
 ```
 
-### 4. Quality checks
+### Verify PyTorch
 
-Backend (from `backend/` with the virtual environment active):
+```powershell
+python -c "import torch; print('PyTorch:', torch.__version__); print('CUDA available:', torch.cuda.is_available())"
+```
 
-``` powershell
+---
+
+## Watch your own PyTorch training live
+
+Copy [`sdk/neurovision_client.py`](sdk/neurovision_client.py) next to your training script. It uses only the standard library, plus PyTorch for `ActivationProbe`. Then open **Live runs** in the browser:
+
+```python
+import neurovision_client as nv
+
+run = nv.start_run("resnet18 / lr 3e-4", total_epochs=20, url="http://127.0.0.1:8000")
+probe = nv.ActivationProbe(model, {"avgpool": model.avgpool},
+                           probe_batch=next(iter(val_loader))[0][:1].to(device))
+
+with run:                                   # marks the run failed on an exception
+    for epoch in range(1, 21):
+        loss, acc = train_one_epoch(model, train_loader)
+        run.log(epoch=epoch, metrics={"loss": loss, "accuracy": acc},
+                activations=probe.capture())
+```
+
+A complete example is in [`sdk/examples/train_spiral.py`](sdk/examples/train_spiral.py), and the full guide is [`docs/live-runs.md`](docs/live-runs.md).
+
+> **Tip:** on Windows, use `127.0.0.1` rather than `localhost`. Otherwise each request can take about 2 s because Windows tries IPv6 first.
+
+---
+
+## Implemented API
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/health` | Service health |
+| `POST /api/v1/models/educational` | Validate a dense-network config and build its graph |
+| `GET /api/v1/models/{model_id}/graph` | A created model's normalized graph |
+| `POST /api/v1/models/{model_id}/forward` | Forward pass with every layer's real values |
+| `GET /api/v1/models/{model_id}/tensors/{tensor_id}` | Bounded weights, biases, gradients |
+| `POST /api/v1/models/{model_id}/training` | Start a background training job |
+| `GET /api/v1/models/{model_id}/metrics` | Latest job and per-epoch metrics |
+| `GET /api/v1/training/{job_id}` | Job status |
+| `POST /api/v1/training/{job_id}/cancel` | Cancel a job |
+| `WS /api/v1/training/{job_id}/events` | Replayed + live training events (jobs and external runs) |
+| `POST /api/v1/runs` | Start an external run from your own script |
+| `POST /api/v1/runs/{run_id}/events` | Log a batch of steps (write token required) |
+| `POST /api/v1/runs/{run_id}/finish` | Mark an external run completed or failed |
+| `GET /api/v1/runs` | List external runs |
+| `POST /api/v1/import/onnx?filename=…` | Import an ONNX file (raw body) for inspection |
+| `GET /api/v1/import/onnx/samples` | List built-in sample models |
+| `POST /api/v1/import/onnx/samples/{name}` | Import a sample model |
+| `POST /api/v1/models/{model_id}/run` | Run an imported model in the isolated worker |
+| `GET /api/v1/models/{model_id}/maps` | One bounded 2D map of a tensor from a recent run |
+| `GET /api/v1/models/{model_id}/grids` | Channel or head thumbnails from a recent run |
+
+All errors use one envelope: `{"error": {"code", "message", "details"}}`.
+
+[`docs/api.md`](docs/api.md) covers the request and response details, the limits, and the fact that storage is currently in memory only.
+
+**API conventions:**
+- Versioned REST lives under `/api/v1`.
+- Pydantic validates requests and responses.
+- WebSockets carry compact training events.
+- Large tensors are served only as bounded summaries or slices.
+
+---
+
+## Quality checks
+
+```powershell
+# backend/ (venv active)
 pytest
 ruff check .
 ruff format --check .
 ```
 
-Frontend (from `frontend/`):
-
-``` powershell
+```powershell
+# frontend/
 npm run lint        # oxlint
-npm run typecheck   # tsc -b, strict mode
+npm run typecheck   # tsc -b, strict
 npm test            # Vitest + Testing Library
 npm run build
 ```
 
-## PyTorch verification
+---
 
-After installing PyTorch, run:
+## Documentation
 
-``` powershell
-python -c "import torch; print('PyTorch:', torch.__version__); print('CUDA available:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
-```
+| Document | Contents |
+|---|---|
+| [`docs/README.md`](docs/README.md) | Documentation index |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | System design, component boundaries, data contracts |
+| [`docs/api.md`](docs/api.md) | REST and WebSocket API reference, limits |
+| [`docs/schemas.md`](docs/schemas.md) | Graph, event, error and health contracts; keeping Pydantic, JSON Schema and Zod in sync |
+| [`docs/importing-onnx.md`](docs/importing-onnx.md) | Exporting from PyTorch and importing, inspecting and running ONNX models |
+| [`docs/live-runs.md`](docs/live-runs.md) | Streaming your own training with the SDK |
+| [`docs/decisions/`](docs/decisions/) | Architecture decision records (0001–0007) |
+| [`PLAN.md`](PLAN.md) | Milestones and acceptance criteria |
+| [`SKILLS.md`](SKILLS.md) | Engineering standards and skills checklist |
 
-CPU execution is sufficient for early educational examples. GPU support
-can be enabled when the installed PyTorch build and hardware runtime are
-compatible.
+---
 
-## Implemented API
+## Security
 
-| Endpoint                                | Purpose                                         |
-|-----------------------------------------|-------------------------------------------------|
-| `GET /api/v1/health`                    | Service health                                  |
-| `POST /api/v1/models/educational`       | Validate a dense-network config, build its graph |
-| `GET /api/v1/models/{model_id}/graph`   | Fetch a created model's normalized graph        |
-| `POST /api/v1/models/{model_id}/forward` | Forward pass with every layer's real values    |
-| `GET /api/v1/models/{model_id}/tensors/{tensor_id}` | Bounded weights, biases, gradients  |
-| `POST /api/v1/models/{model_id}/training` | Start a background training job               |
-| `GET /api/v1/models/{model_id}/metrics` | Latest job and per-epoch metrics                |
-| `GET /api/v1/training/{job_id}`         | Job status                                      |
-| `POST /api/v1/training/{job_id}/cancel` | Cancel a job                                    |
-| `WS /api/v1/training/{job_id}/events`   | Replayed and live training events (jobs and external runs) |
-| `POST /api/v1/runs`                     | Start an external run from your own script      |
-| `POST /api/v1/runs/{run_id}/events`     | Log a batch of steps (write token required)     |
-| `POST /api/v1/runs/{run_id}/finish`     | Mark an external run completed or failed        |
-| `GET /api/v1/runs`                      | List external runs                              |
-| `POST /api/v1/import/onnx?filename=…`   | Import an ONNX file (raw body) for inspection   |
-| `GET /api/v1/import/onnx/samples`       | List built-in sample models                     |
-| `POST /api/v1/import/onnx/samples/{name}` | Import a sample model                         |
-| `POST /api/v1/models/{model_id}/run`    | Run an imported model in the isolated worker    |
-| `GET /api/v1/models/{model_id}/maps`    | One bounded 2D map of a tensor from a recent run |
-| `GET /api/v1/models/{model_id}/grids`   | Channel or head thumbnails from a recent run    |
+- Model uploads are treated as **untrusted**.
+- Upload and tensor-request sizes are limited.
+- Pickle files and other unsafe serialized Python objects are **never** loaded.
+- Imported models are never executed automatically on upload. Running one is an explicit action, and it happens in an **isolated, time-limited** worker process.
+- Secrets stay out of source control; see the `.env.example` files.
+- CORS is configured explicitly. By default only `http://localhost:5173` and `http://127.0.0.1:5173` are allowed, and `NEUROVISION_CORS_ORIGINS` overrides this.
 
-Request and response details, limits, and the in-memory storage
-limitation are in [`docs/api.md`](docs/api.md). Design decisions are in
-[`docs/decisions/`](docs/decisions/): the
-[2D renderer](docs/decisions/0001-2d-renderer.md), the
-[3D renderer](docs/decisions/0002-3d-renderer.md),
-[training jobs and event streaming](docs/decisions/0003-training-jobs.md),
-[ONNX import](docs/decisions/0004-onnx-import.md),
-[running imported models](docs/decisions/0005-onnx-runtime-inference.md),
-[external runs](docs/decisions/0006-external-runs.md), and
-[feature-map, attention, and filter views](docs/decisions/0007-tensor-views.md). To watch your own
-PyTorch training live, see [`docs/live-runs.md`](docs/live-runs.md).
+---
 
-Errors from any endpoint use a shared envelope,
-`{"error": {"code", "message", "details"}}`. The model graph, training
-event, error, and health contracts, and how to keep the Pydantic, JSON
-Schema, and Zod versions in sync, are documented in
-[`docs/schemas.md`](docs/schemas.md). CORS origins come from
-`NEUROVISION_CORS_ORIGINS`; the default allows only
-`http://localhost:5173` and `http://127.0.0.1:5173`.
+## Roadmap and status
 
-## API conventions
+The project is built milestone by milestone, and each milestone leaves the repository runnable and tested:
 
--   Use `/api/v1` for versioned REST endpoints.
--   Validate requests and responses with Pydantic.
--   Use WebSockets for compact training events.
--   Keep large tensors outside graph JSON and serve bounded summaries or
-    slices.
--   Return clear error responses for unsupported operators, invalid
-    architecture settings, malformed files, and oversized requests.
+| Milestone | Scope | Status |
+|---|---|---|
+| 0 | Scaffold frontend and backend, health check | ✅ |
+| 1 | Shared graph/event contracts, error envelope, state views | ✅ |
+| 2 | Architecture Studio with 2D renderer and inspector | ✅ |
+| 3 | 3D explorer with synced selection and detail limits | ✅ |
+| 4 | PyTorch training, forward passes, live event streaming | ✅ |
+| 5 | Safe ONNX import and graph inspection | ✅ |
+| 6 | Run imported models; stream your own training (Live Runs) | ✅ |
+| 7 | CNN feature maps, attention heads, filter views | ✅ |
+| Next | Learning Mode, saved projects, deployment | planned |
 
-Planned endpoints are documented in `ARCHITECTURE.md`.
+See [`PLAN.md`](PLAN.md) for the detailed tasks and acceptance criteria.
 
-## Security notes
+**Development principles:**
+- Build one vertical slice at a time.
+- Use one shared graph schema for every view.
+- Keep measured values clearly separate from explanatory animation.
+- Test numerical correctness, API validation and renderer synchronization.
+- Document only behaviour that exists.
 
--   Treat model uploads as untrusted.
--   Enforce upload and tensor-request size limits.
--   Never load untrusted pickle files or unsafe serialized Python model
-    objects.
--   Do not execute imported models automatically on upload.
--   Keep secrets out of source control.
--   Configure CORS explicitly for each environment.
--   Isolate inference and training jobs when execution of imported
-    models is introduced.
-
-## Development principles
-
-1.  Build one working vertical slice at a time.
-2.  Use a shared graph schema for all visualization modes.
-3.  Distinguish actual measured values from explanatory animation.
-4.  Keep semantic graph data separate from visual layout coordinates.
-5.  Test numerical correctness, API validation, and renderer
-    synchronization.
-6.  Update documentation only to reflect behavior that exists.
-7.  Do not claim tests or features are complete without verifying them.
-
-## Roadmap
-
-See [`PLAN.md`](PLAN.md) for the milestone sequence and acceptance
-criteria, and [`ARCHITECTURE.md`](ARCHITECTURE.md) for system
-boundaries.
+---
 
 ## Contributing
 
--   Create a focused branch for each feature.
--   Keep pull requests small and testable.
--   Include tests for bug fixes and numerical logic.
--   Run formatting, linting, type checks, tests, and production builds
-    before merging.
--   Document limitations and any intentional trade-offs.
+- Create a focused branch for each feature, and keep pull requests small and testable.
+- Include tests for bug fixes and numerical logic.
+- Before merging, run formatting, linting, type checks, tests and a production build.
+- Document limitations and intentional trade-offs.
+
+---
 
 ## License
 
-Choose and add a license before public distribution. Do not imply that
-the project has a license until the corresponding license file is
-present.
+No license has been chosen yet. Until a `LICENSE` file is added, all rights are reserved by the author.
