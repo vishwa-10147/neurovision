@@ -2,6 +2,8 @@
 
 Start with the project [README](../README.md) for setup. The documents below go deeper.
 
+For an overview of the whole system with its design rationale and measured evaluation, read the technical paper, [`paper/NeuroVision_Paper.pdf`](../paper/NeuroVision_Paper.pdf).
+
 ## Guides
 
 | Guide | Read it when you want to… |

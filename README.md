@@ -16,6 +16,8 @@
 Everything the UI shows as model behaviour comes from **actually computed values**, never from decorative animation.
 
 > **Author:** K. Vishwa (Kokkireni Vishwa) — [vishwa-10147](https://github.com/vishwa-10147)
+>
+> 📄 **Paper:** [*NeuroVision: An Interactive Platform for Building, Training, and Inspecting Neural Networks with Measured Values in Synchronized 2D and 3D Views*](paper/NeuroVision_Paper.pdf) ([PDF](paper/NeuroVision_Paper.pdf) · [DOCX](paper/NeuroVision_Paper.docx)). It covers the design, architecture and an evaluation with measured results.
 
 ---
 
@@ -123,7 +125,7 @@ neurovision/
 │   │   ├── services/         # ONNX import/runtime, training jobs, event stream, external runs, tensors
 │   │   ├── schemas/          # Pydantic models
 │   │   └── core/             # config, errors
-│   ├── tests/                # pytest suite (147 tests)
+│   ├── tests/                # pytest suite (211 tests)
 │   ├── requirements.txt  requirements-dev.txt  pyproject.toml
 │   └── .env.example
 ├── sdk/
@@ -131,6 +133,7 @@ neurovision/
 │   └── examples/train_spiral.py
 ├── shared/schemas/           # JSON Schemas for graph, events, errors, tensors (+ examples)
 ├── docs/                     # API reference, guides, design decisions (ADRs)
+├── paper/                    # Technical paper (PDF + DOCX)
 ├── ARCHITECTURE.md           # System design and boundaries
 ├── PLAN.md                   # Milestones and acceptance criteria
 ├── SKILLS.md                 # Engineering standards and skills checklist
@@ -311,6 +314,7 @@ npm run build
 
 | Document | Contents |
 |---|---|
+| [`paper/NeuroVision_Paper.pdf`](paper/NeuroVision_Paper.pdf) · [`.docx`](paper/NeuroVision_Paper.docx) | Technical paper: motivation, related work, design, architecture, evaluation (tests, correctness, training, latency, limits) |
 | [`docs/README.md`](docs/README.md) | Documentation index |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | System design, component boundaries, data contracts |
 | [`docs/api.md`](docs/api.md) | REST and WebSocket API reference, limits |
