@@ -694,3 +694,114 @@ def test_eta_follows_fractional_progress(server: FakeServer) -> None:
         neurovision_client.time.monotonic = real  # type: ignore[assignment]
     run.finish()
     assert server.events()[1]["system"]["eta_s"] == pytest.approx(6.0)
+
+
+# Linking a run to its model graph ----------------------------------------------
+
+
+class ImportingServer(FakeServer):
+    def __init__(self, import_status: int = 201) -> None:
+        super().__init__()
+        self.import_status = import_status
+
+    def __call__(
+        self, method: str, url: str, body: Any, headers: dict[str, str]
+    ) -> tuple[int, Any]:
+        if "/api/v1/import/onnx" in url:
+            self.requests.append((method, url, body, headers))
+            if self.import_status != 201:
+                return self.import_status, {"error": {"message": "too large"}}
+            return 201, {"model_id": "onnx_linked"}
+        return super().__call__(method, url, body, headers)
+
+
+def test_links_the_run_to_the_exported_model() -> None:
+    server = ImportingServer()
+    model = Net()
+    model.train()
+    run = nv.start_run(
+        "my net/1",
+        total_epochs=2,
+        url="http://nv.test",
+        transport=server,
+        model=model,
+        example_input=torch.zeros(4, 3),
+    )
+    run.finish()
+    method, url, body, _ = server.requests[0]
+    assert method == "POST" and url.endswith(
+        "/api/v1/import/onnx?filename=my_net_1.onnx"
+    )
+    assert isinstance(body, bytes) and len(body) > 100
+    assert server.requests[1][2]["model_id"] == "onnx_linked"
+    assert model.training  # The export restores the mode.
+
+
+def test_a_failed_import_still_starts_the_run(caplog: pytest.LogCaptureFixture) -> None:
+    server = ImportingServer(import_status=413)
+    run = nv.start_run(
+        "big",
+        total_epochs=1,
+        transport=server,
+        model=Net(),
+        example_input=torch.zeros(1, 3),
+    )
+    run.finish()
+    assert run.enabled and "model_id" not in server.requests[1][2]
+    assert "not imported (HTTP 413: too large" in caplog.text
+
+
+def test_probe_by_module_name() -> None:
+    model = Net()
+    probe = nv.ActivationProbe.by_name(model, ["act"], torch.zeros(1, 3))
+    assert set(probe.capture()) == {"act"}
+    with pytest.raises(ValueError, match="No such modules: nope"):
+        nv.ActivationProbe.by_name(model, ["nope"], torch.zeros(1, 3))
+
+
+def test_linked_graph_is_served_by_the_real_backend(live_server: str) -> None:
+    model = Net()
+    run = nv.start_run(
+        "linked",
+        total_epochs=1,
+        url=live_server,
+        model=model,
+        example_input=torch.zeros(1, 3),
+    )
+    run.log(epoch=1, metrics={"loss": 1.0})
+    run.finish()
+    with urllib.request.urlopen(f"{live_server}/api/v1/runs") as response:
+        info = json.loads(response.read())["runs"][0]
+    assert info["model_id"]
+    with urllib.request.urlopen(
+        f"{live_server}/api/v1/models/{info['model_id']}/graph"
+    ) as response:
+        graph = json.loads(response.read())
+    names = [n["name"] for n in graph["nodes"]]
+    # torch names ONNX nodes by module path, which Live Runs uses for matching.
+    assert any(name.startswith("/fc/") for name in names)
+
+
+def test_update_ratio_is_averaged_per_optimizer_step() -> None:
+    torch.manual_seed(0)
+    model = Deep()
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+    monitor = nv.HealthMonitor(model, optimizer=optimizer)
+    x = torch.randn(16, 4)
+    monitor.collect()
+    before = torch.cat([p.detach().flatten().clone() for p in model.fc1.parameters()])
+    for _ in range(10):  # Ten steps between two collects, e.g. one epoch.
+        optimizer.zero_grad()
+        model(x).pow(2).mean().backward()
+        optimizer.step()
+    health = monitor.collect()
+    after = torch.cat([p.detach().flatten() for p in model.fc1.parameters()])
+    whole = float((after - before).norm() / after.norm())
+    assert health["parameters"]["fc1"]["update_ratio"] == pytest.approx(
+        whole / 10, rel=1e-4
+    )
+    # The count restarts after each collect().
+    optimizer.zero_grad()
+    model(x).pow(2).mean().backward()
+    optimizer.step()
+    assert monitor._steps == 1

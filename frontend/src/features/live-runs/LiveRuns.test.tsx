@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLiveRunStore } from '../../stores/liveRunStore'
 import { FakeSocket, fakeBackend, stepEvent, type FakeBackend } from '../../test/fakeBackend'
 import { LiveRuns } from './LiveRuns'
+import { linkedGraph } from '../../test/linkedGraph'
 
 const initial = useLiveRunStore.getState()
 let backend: FakeBackend
@@ -197,5 +198,33 @@ describe('Live runs', () => {
     expect(within(gpu).getByText('5.5 GiB of 8.0 GiB')).toBeInTheDocument()
     expect(within(gpu).getByText('88 W')).toBeInTheDocument()
     expect(screen.getByText(/2 min 05 s elapsed · about 3 min 05 s left/)).toBeInTheDocument()
+  })
+
+  it('shows the linked network and colors it with the statistics of each step', async () => {
+    backend.use((method, path) =>
+      method === 'GET' && path === '/models/onnx_live/graph' ? Response.json(linkedGraph()) : undefined,
+    )
+    serveRuns([{ ...runInfo('run_a', 'Spiral MLP'), model_id: 'onnx_live' }])
+    render(<LiveRuns />)
+    await userEvent.click(await screen.findByRole('button', { name: /Spiral MLP/ }))
+    const panel = await screen.findByRole('region', { name: 'Live network graph' })
+    await within(panel).findByText(/8 operators, exported from the training script/)
+    act(() => {
+      const socket = FakeSocket.latest()
+      socket.emit(started('run_a'))
+      socket.emit(
+        stepEvent('run_a', 1, {
+          health: {
+            parameters: { fc1: { grad_norm: 0.5, parameters: 96 } },
+            activations: { act1: { kind: 'relu', mean: 3, std: 4, dead_fraction: 0.25 } },
+          },
+        }),
+      )
+    })
+    await waitFor(() => expect(panel.querySelector('[data-node-id="n1"] rect')).toHaveAttribute('data-value', '5'))
+    expect(panel).toHaveTextContent('Colored by step 10; 1 reported layer placed on the graph by module name.')
+    await userEvent.click(within(panel).getByRole('button', { name: 'Gradient norm' }))
+    expect(panel.querySelector('[data-node-id="n0"] rect')).toHaveAttribute('data-value', '0.5')
+    expect(panel.querySelector('[data-node-id="n1"] rect')).not.toHaveAttribute('data-value')
   })
 })

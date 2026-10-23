@@ -98,6 +98,11 @@ def main() -> None:
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--size", type=int, default=224)
     parser.add_argument(
+        "--no-graph",
+        action="store_true",
+        help="do not link the model's graph to the run",
+    )
+    parser.add_argument(
         "--no-health",
         action="store_true",
         help="skip HealthMonitor (to measure its cost)",
@@ -162,6 +167,9 @@ def main() -> None:
         f"{args.model} · digits fine-tune",
         total_epochs=args.epochs,
         url=args.url,
+        # Linked graph: export over 64 MB needs NEUROVISION_MAX_UPLOAD_BYTES raised.
+        model=None if args.no_graph else model,
+        example_input=to_images(x_test[:1], args.size, False),
         control=True,
         optimizer=optimizer,
     ) as run:

@@ -734,3 +734,6 @@ code {
 .run-system .gpu-row + .gpu-row { border-top: 1px solid var(--border, transparent); }
 .photo-preview { display: flex; align-items: center; gap: 0.6rem; margin: 0.4rem 0 0; }
 .photo-preview img { border-radius: 6px; object-fit: cover; image-rendering: auto; }
+.live-graph-canvas { height: 520px; margin: 0.6rem 0; border: 1px solid var(--border, transparent); border-radius: 8px; overflow: hidden; }
+.live-graph-canvas .graph-view { height: 100%; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; }

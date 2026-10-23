@@ -19,9 +19,23 @@ interface Network2DProps {
   activations?: Record<string, number[]> | null
   /** Imported models: one measured magnitude per operator from the last run. */
   blockValues?: Record<string, number> | null
+  /** What blockValues measure: a short name for tooltips and the legend text. */
+  blockLabel?: BlockLabel
 }
 
-export function Network2D({ graph, overlay, activations, blockValues }: Network2DProps) {
+export interface BlockLabel {
+  name: string
+  legend: string
+  /** Where the values come from, shown under the legend. */
+  source?: string
+}
+
+const RUN_LABEL: BlockLabel = {
+  name: 'output RMS',
+  legend: 'Operator color: size (RMS) of its output in the last run, scaled across operators',
+}
+
+export function Network2D({ graph, overlay, activations, blockValues, blockLabel = RUN_LABEL }: Network2DProps) {
   const blockMax = blockValues ? Math.max(0, ...Object.values(blockValues)) : 0
   const layout = useMemo(() => computeLayout(graph), [graph])
   const { selection, select } = useModelView()
@@ -91,6 +105,7 @@ export function Network2D({ graph, overlay, activations, blockValues }: Network2
               values={activations?.[layer.nodeId] ?? null}
               blockValue={blockValues?.[layer.nodeId] ?? null}
               blockMax={blockMax}
+              blockName={blockLabel.name}
             />
           ))}
         </g>
@@ -101,7 +116,11 @@ export function Network2D({ graph, overlay, activations, blockValues }: Network2
       {showsUnits(graph) ? (
         <Legend aggregated={aggregated} connectionCount={layout.connectionCount} showsActivations={Boolean(activations)} />
       ) : (
-        <OperatorLegend graph={graph} measured={Boolean(blockValues && Object.keys(blockValues).length)} />
+        <OperatorLegend
+          graph={graph}
+          measured={blockValues && Object.keys(blockValues).length ? blockLabel.legend : null}
+          source={blockLabel.source}
+        />
       )}
     </div>
   )
@@ -117,6 +136,7 @@ function Layer({
   values,
   blockValue = null,
   blockMax = 0,
+  blockName = RUN_LABEL.name,
 }: {
   layer: LayerLayout
   selection: Selection
@@ -125,6 +145,7 @@ function Layer({
   values: number[] | null
   blockValue?: number | null
   blockMax?: number
+  blockName?: string
 }) {
   const shaded = !layer.units && blockValue !== null
   const maxAbs = values ? Math.max(0, ...values.map(Math.abs)) : 0
@@ -165,7 +186,7 @@ function Layer({
         style={shaded ? { fill: activationFill(blockValue, blockMax) } : undefined}
         onClick={chooseIf({ kind: 'layer', nodeId: layer.nodeId })}
       >
-        {shaded && <title>{`${layer.label}: output RMS ${blockValue.toPrecision(3)}`}</title>}
+        {shaded && <title>{`${layer.label}: ${blockName} ${blockValue.toPrecision(3)}`}</title>}
       </rect>
       <text className="layer-label" x={layer.x} y={layer.top - 10} textAnchor="middle">
         {layer.label}
@@ -346,7 +367,15 @@ function EdgeBand({
   )
 }
 
-function OperatorLegend({ graph, measured }: { graph: ModelGraph; measured: boolean }) {
+function OperatorLegend({
+  graph,
+  measured,
+  source = 'Values come from running the model in ONNX Runtime; select an operator to see them.',
+}: {
+  graph: ModelGraph
+  measured: string | null
+  source?: string
+}) {
   const unsupported = graph.nodes.filter((n) => n.unsupported).length
   const runnable = graph.model.capabilities.inference
   return (
@@ -354,7 +383,7 @@ function OperatorLegend({ graph, measured }: { graph: ModelGraph; measured: bool
       {measured && (
         <span className="legend-item">
           <span className="activation-scale activation-scale-positive" aria-hidden="true" />
-          Operator color: size (RMS) of its output in the last run, scaled across operators
+          {measured}
         </span>
       )}
       <span className="legend-item">
@@ -379,7 +408,7 @@ function OperatorLegend({ graph, measured }: { graph: ModelGraph; measured: bool
         Each block is one operator, labeled with its type; each link is a tensor passed between
         operators.{' '}
         {measured
-          ? 'Values come from running the model in ONNX Runtime; select an operator to see them.'
+          ? source
           : runnable
             ? 'Run the model to color operators by the values they actually produce.'
             : 'This model cannot be run here (see the import report), so values are not computed.'}

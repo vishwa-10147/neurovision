@@ -46,12 +46,20 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import OrderedDict, deque
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
-__all__ = ["ActivationProbe", "HealthMonitor", "Run", "SystemMonitor", "start_run"]
+__all__ = [
+    "ActivationProbe",
+    "HealthMonitor",
+    "Run",
+    "SystemMonitor",
+    "export_onnx",
+    "start_run",
+]
 
 # Limits enforced by the server (backend/app/schemas/events.py, runs.py).
 MAX_METRICS = 16
@@ -69,7 +77,8 @@ MAX_GPUS = 8
 DEFAULT_URL = "http://127.0.0.1:8000"
 logger = logging.getLogger("neurovision_client")
 
-# (method, url, body or None, headers) -> (status, decoded JSON body or None)
+# (method, url, body or None, headers) -> (status, decoded JSON body or None).
+# A bytes body is sent as-is (an ONNX file); anything else as JSON.
 Transport = Callable[[str, str, Any, dict[str, str]], tuple[int, Any]]
 
 
@@ -77,9 +86,14 @@ def urllib_transport(timeout: float) -> Transport:
     def send(
         method: str, url: str, body: Any, headers: dict[str, str]
     ) -> tuple[int, Any]:
-        data = None if body is None else json.dumps(body).encode("utf-8")
+        raw = isinstance(body, bytes)
+        data = (
+            body if raw else None if body is None else json.dumps(body).encode("utf-8")
+        )
         request = urllib.request.Request(url, data=data, method=method)
-        request.add_header("Content-Type", "application/json")
+        request.add_header(
+            "Content-Type", "application/octet-stream" if raw else "application/json"
+        )
         for name, value in headers.items():
             request.add_header(name, value)
         try:
@@ -111,6 +125,8 @@ def start_run(
     total_epochs: int,
     url: str | None = None,
     model_id: str | None = None,
+    model: Any = None,
+    example_input: Any = None,
     control: bool = False,
     optimizer: Any = None,
     on_checkpoint: Callable[[], Any] | None = None,
@@ -134,6 +150,15 @@ def start_run(
     Anyone who can reach the backend can send them, so keep it on localhost
     or a trusted network.
 
+    `model` and `example_input` (a PyTorch module and one input batch) link
+    the run to the network's graph: the model is exported to ONNX here and
+    imported into NeuroVision, and Live Runs shows that graph in 2D and 3D,
+    colored by the activations and gradients each step reports. Use module
+    names (e.g. "net.1") as ActivationProbe labels so they map onto the
+    graph; HealthMonitor statistics use them already. If the export or the
+    upload fails (e.g. a file over the server's upload limit), a warning is
+    logged and the run is created without a graph.
+
     `track_system` (on by default) sends timing (elapsed, step time, ETA,
     throughput) with every step, plus CPU, RAM and GPU use when psutil and
     nvidia-ml-py are installed (both optional); see SystemMonitor.
@@ -151,6 +176,14 @@ def start_run(
         logger.info(
             "NeuroVision: pass control=True to start_run to let the dashboard "
             "use the optimizer or checkpoint function."
+        )
+    if model_id is None and model is not None and example_input is not None:
+        model_id = _link_model(
+            transport or urllib_transport(max(timeout, 120.0)),
+            base,
+            name,
+            model,
+            example_input,
         )
     body: dict[str, Any] = {"name": name, "total_epochs": total_epochs}
     if model_id is not None:
@@ -186,6 +219,86 @@ def start_run(
     )
     logger.info("NeuroVision: logging run %s to %s", run.run_id, base)
     return run
+
+
+def export_onnx(model: Any, example_input: Any) -> bytes:
+    """The model as ONNX bytes (opset 17, dynamic batch), for NeuroVision.
+
+    Exported in eval mode under torch.no_grad(); the model's mode is restored.
+    """
+    import io
+    import warnings
+
+    import torch
+
+    buffer = io.BytesIO()
+    was_training = model.training
+    model.eval()
+    try:
+        # The TorchScript exporter (dynamo=False) names nodes by module path
+        # ("/layer1/layer1.0/relu/Relu"), which Live Runs uses to place each
+        # layer's values on the graph; it warns that it is deprecated.
+        with torch.no_grad(), warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            torch.onnx.export(
+                model,
+                (example_input,),
+                buffer,
+                input_names=["input"],
+                output_names=["output"],
+                dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
+                opset_version=17,
+                dynamo=False,
+            )
+    finally:
+        model.train(was_training)
+    return buffer.getvalue()
+
+
+def _short_reason(error: Exception) -> str:
+    """The error's type and first line: exporter errors can embed a whole traced graph."""
+    lines = [line.strip() for line in str(error).splitlines() if line.strip()]
+    first = next(
+        (line for line in lines if not line.startswith(("%", "graph(", "Torch IR"))), ""
+    )
+    return (
+        f"{type(error).__name__}: {first}"[:MAX_MESSAGE_LENGTH]
+        if first
+        else type(error).__name__
+    )
+
+
+def _link_model(
+    send: Transport, base: str, name: str, model: Any, example_input: Any
+) -> str | None:
+    """Export and import the model; its id, or None (with a warning)."""
+    try:
+        data = export_onnx(model, example_input)
+    except Exception as error:
+        logger.warning(
+            "NeuroVision: could not export the model to ONNX (%s); no graph.",
+            _short_reason(error),
+        )
+        return None
+    filename = (
+        "".join(c if c.isalnum() or c in "-_." else "_" for c in name)[:200] or "model"
+    )
+    query = urllib.parse.urlencode({"filename": f"{filename}.onnx"})
+    try:
+        status, payload = send("POST", f"{base}/api/v1/import/onnx?{query}", data, {})
+    except Exception as error:
+        logger.warning("NeuroVision: could not upload the model (%s); no graph.", error)
+        return None
+    if status != 201 or not isinstance(payload, dict) or "model_id" not in payload:
+        logger.warning(
+            "NeuroVision: the model was not imported (HTTP %s: %s; %.1f MB); no graph.",
+            status,
+            _error_message(payload),
+            len(data) / 2**20,
+        )
+        return None
+    logger.info("NeuroVision: linked the run to model %s", payload["model_id"])
+    return str(payload["model_id"])
 
 
 class Run:
@@ -989,9 +1102,12 @@ class HealthMonitor:
     batches, and pass the result to run.log(health=...). It measures:
 
     - per parameter group (module that owns parameters): gradient norm,
-      weight norm, and the update ratio ‖Δw‖/‖w‖ since the previous
-      collect() (keeps one copy of the parameters; track_updates=False
-      turns it off);
+      weight norm, and the update ratio ‖Δw‖/‖w‖ (keeps one copy of the
+      parameters; track_updates=False turns it off). With an `optimizer`,
+      its steps are counted and the ratio is the change since the previous
+      collect() divided by the number of steps, i.e. the average per step,
+      which is what the alert thresholds assume; without one it is the
+      whole change since the previous collect();
     - globally: total gradient norm, the optimizer's learning rate, and the
       number of NaN/∞ gradient values;
     - with a probe_batch, for nn.ReLU/ReLU6/LeakyReLU/ELU/GELU/SiLU/Tanh/
@@ -1030,11 +1146,23 @@ class HealthMonitor:
             if type(module).__name__ in _ACTIVATION_KINDS
         ][:max_layers]
         self._previous: dict[int, Any] = {}
+        # Optimizer steps since the previous collect(); None when not counted.
+        self._steps: int | None = None
+        if optimizer is not None and hasattr(optimizer, "register_step_post_hook"):
+            self._steps = 0
+            optimizer.register_step_post_hook(self._count_step)
+
+    def _count_step(self, *_: Any) -> None:
+        if self._steps is not None:
+            self._steps += 1
 
     def collect(self) -> dict[str, Any]:
         import torch
 
         health: dict[str, Any] = {"parameters": {}, "nonfinite_grads": 0}
+        steps = max(1, self._steps) if self._steps is not None else 1
+        if self._steps is not None:
+            self._steps = 0
         total_sq = 0.0
         any_grad = False
         with torch.no_grad():
@@ -1074,7 +1202,7 @@ class HealthMonitor:
                     total_sq += grad_sq
                     any_grad = True
                 if has_update and weight_norm > 0:
-                    entry["update_ratio"] = math.sqrt(update_sq) / weight_norm
+                    entry["update_ratio"] = math.sqrt(update_sq) / weight_norm / steps
                 health["parameters"][name] = entry
         if any_grad:
             health["grad_norm"] = math.sqrt(total_sq)
@@ -1158,6 +1286,19 @@ class ActivationProbe:
     torch.no_grad() and restores the model's previous mode. Values are the
     first example's output, flattened, keeping the first 256 values.
     """
+
+    @classmethod
+    def by_name(cls, model: Any, names: list[str], probe_batch: Any) -> ActivationProbe:
+        """Probe modules by their names in model.named_modules(), e.g. "net.1".
+
+        Module names as labels let Live Runs place the values on the model's
+        graph when the run is linked to it (start_run(model=...)).
+        """
+        modules = dict(model.named_modules())
+        missing = [n for n in names if n not in modules]
+        if missing:
+            raise ValueError(f"No such modules: {', '.join(missing)}")
+        return cls(model, {n: modules[n] for n in names}, probe_batch)
 
     def __init__(self, model: Any, layers: Mapping[str, Any], probe_batch: Any):
         if not layers:

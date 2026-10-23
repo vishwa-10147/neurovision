@@ -20,10 +20,12 @@ const PAN_STEP = 0.05
 interface Network3DProps {
   graph: ModelGraph
   overlay?: string | null
+  /** One measured value per operator; shaded blocks, as in the 2D view. */
+  blockValues?: Record<string, number> | null
 }
 
 /** Default export so the studio can lazy-load three.js only when 3D is opened. */
-export default function Network3D({ graph, overlay }: Network3DProps) {
+export default function Network3D({ graph, overlay, blockValues = null }: Network3DProps) {
   const scene = useMemo(() => planScene(graph), [graph])
   const operators = !showsUnits(graph)
   const { selection, select } = useModelView()
@@ -111,7 +113,7 @@ export default function Network3D({ graph, overlay }: Network3DProps) {
           <Connections scene={scene} highlight={highlight} colors={colors} onPick={pick} />
           <LayerLinks scene={scene} highlight={highlight} colors={colors} onPick={pick} />
           <Units scene={scene} highlight={highlight} colors={colors} onPick={pick} onHover={setHovered} />
-          <Layers scene={scene} highlight={highlight} colors={colors} onPick={pick} />
+          <Layers scene={scene} highlight={highlight} colors={colors} onPick={pick} blockValues={blockValues} />
           <CameraRig scene={scene} ref={commands} reducedMotion={reducedMotion} />
         </Canvas>
         {hoveredLabel && <div className="network3d-hover">{hoveredLabel}</div>}
@@ -164,7 +166,9 @@ export default function Network3D({ graph, overlay }: Network3DProps) {
           <p className="legend-note">
             Each block is one operator and each link a tensor between operators. Labels show
             operator types{scene.layers.length > MAX_3D_LABELS ? ' (only for the selection in graphs this large)' : ''}.
-            Shown for inspection only: values are not computed.
+            {blockValues && Object.keys(blockValues).length > 0
+              ? 'Shaded blocks carry measured values, from neutral to blue, on the same scale as the 2D view.'
+              : 'Shown for inspection only: values are not computed here; the 2D view colors operators after a run.'}
           </p>
         </div>
       ) : (

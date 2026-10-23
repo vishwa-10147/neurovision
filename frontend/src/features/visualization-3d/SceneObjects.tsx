@@ -192,14 +192,22 @@ export function Layers({
   highlight,
   colors,
   onPick,
+  blockValues = null,
 }: {
   scene: Scene3D
   highlight: Highlight3D
   colors: ThemeColors
   onPick: Pick
+  blockValues?: Record<string, number> | null
 }) {
   // Hundreds of DOM labels are unreadable and slow; then label only the selection.
   const labelAll = scene.layers.length <= MAX_3D_LABELS
+  const blockMax = blockValues ? Math.max(0, ...Object.values(blockValues)) : 0
+  const shade = (nodeId: string): string | null => {
+    const value = blockValues?.[nodeId]
+    if (value === undefined || blockMax <= 0) return null
+    return '#' + new THREE.Color(colors.actZero).lerp(new THREE.Color(colors.actPos), Math.abs(value) / blockMax).getHexString()
+  }
   return (
     <>
       {scene.layers.map((layer) => {
@@ -215,7 +223,7 @@ export function Layers({
               <mesh onClick={(event) => onPick({ kind: 'layer', nodeId: layer.nodeId }, event)}>
                 <boxGeometry args={layer.size} />
                 <meshStandardMaterial
-                  color={layer.unsupported ? colors.warn : roleColor(colors, layer.role)}
+                  color={shade(layer.nodeId) ?? (layer.unsupported ? colors.warn : roleColor(colors, layer.role))}
                   transparent
                   opacity={highlight.active && !selected ? 0.35 : 0.85}
                 />

@@ -33,6 +33,9 @@ export interface ThemeColors {
   surface: string
   muted: string
   warn: string
+  /** Measured-value scale, as in the 2D view. */
+  actZero: string
+  actPos: string
 }
 
 /** Scene colors from the CSS custom properties, updated when the theme flips. */
@@ -55,5 +58,7 @@ function readColors(_dark: boolean): ThemeColors {
     surface: get('--surface', '#121826'),
     muted: get('--muted', '#94a0b8'),
     warn: get('--warn', '#f2c94c'),
+    actZero: get('--act-zero', '#2a3247'),
+    actPos: get('--act-pos', '#4f9dff'),
   }
 }

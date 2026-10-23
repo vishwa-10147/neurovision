@@ -9,6 +9,7 @@ For an overview of the whole system with its design rationale and measured evalu
 | Guide | Read it when you want to… |
 |---|---|
 | [Inspecting and running your own models (ONNX)](importing-onnx.md) | export a PyTorch model to ONNX, import it, inspect its graph and weights, and run it to see feature maps, filters and attention heads |
+| [Supported models](supported-models.md) | which model families work where, linking a live run to its graph, and what cannot be exported |
 | [Real vision models](vision-benchmarks.md) | speed, GPU/CPU load, accuracy and views of seven pretrained torchvision models, and live GPU fine-tuning |
 | [Watching your own training live](live-runs.md) | stream metrics and layer activations from your own training script with `sdk/neurovision_client.py` |
 

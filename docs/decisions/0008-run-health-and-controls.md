@@ -68,7 +68,7 @@ the layer (if any), a message with the measured numbers, and advice:
 | `loss_spike` | loss > 3 × median of the last 10 (≥ 5 seen) | warning |
 | `loss_plateau` | no > 1 % improvement of the best loss for 20 logged steps | info |
 | `overfitting` | `val_loss` rose 5 logged steps in a row while `loss` fell | warning |
-| `gpu_underused` | a GPU's NVML utilization ≤ 20 % for 5 logged steps (per GPU; from `system`) | info |
+| `gpu_underused` | a GPU's NVML utilization ≤ 20 % for 5 logged steps while the script reports a CUDA device (per GPU; from `system`) | info |
 | `gpu_memory_high` | a GPU's memory ≥ 95 % used (per GPU; from `system`) | warning |
 
 An alert fires once when its condition starts and re-arms when it clears,

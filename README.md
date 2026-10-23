@@ -276,6 +276,12 @@ A complete example is in [`sdk/examples/train_spiral.py`](sdk/examples/train_spi
 
 > **Tip:** on Windows, use `127.0.0.1` rather than `localhost`. Otherwise each request can take about 2 s because Windows tries IPv6 first.
 
+### See the network while it trains
+
+Pass `model=model, example_input=x[:1]` to `start_run` and Live Runs shows the network's graph in 2D and 3D, colored every step by activation size, gradient norm or dead units. Four ready demos (MLP, CNN, self-attention, autoencoder) are in [`sdk/examples`](sdk/examples/README.md); which models are supported where is in [`docs/supported-models.md`](docs/supported-models.md).
+
+![Digits CNN training live in NeuroVision](docs/images/demos/cnn-live-run.png)
+
 ### System use, speed and ETA
 
 Every logged step also carries elapsed time, step time, an ETA, throughput (`samples=`), CPU and RAM (with `psutil`), and per-GPU load, memory, temperature and power (with `nvidia-ml-py`), shown in a **System & speed** panel with charts. Two rules flag an idle GPU and nearly full GPU memory.
@@ -367,8 +373,9 @@ npm run build
 | [`docs/schemas.md`](docs/schemas.md) | Graph, event, error and health contracts; keeping Pydantic, JSON Schema and Zod in sync |
 | [`docs/importing-onnx.md`](docs/importing-onnx.md) | Exporting from PyTorch and importing, inspecting and running ONNX models |
 | [`docs/live-runs.md`](docs/live-runs.md) | Streaming your own training with the SDK |
+| [`docs/supported-models.md`](docs/supported-models.md) | Which models work in the Studio, the Model Explorer and Live Runs; linking a run to its graph |
 | [`docs/vision-benchmarks.md`](docs/vision-benchmarks.md) | Seven real vision models: speed, load, accuracy, 2D/3D views, attention, GPU fine-tuning |
-| [`docs/decisions/`](docs/decisions/) | Architecture decision records (0001–0008) |
+| [`docs/decisions/`](docs/decisions/) | Architecture decision records (0001–0009) |
 | [`PLAN.md`](PLAN.md) | Milestones and acceptance criteria |
 | [`SKILLS.md`](SKILLS.md) | Engineering standards and skills checklist |
 
@@ -400,6 +407,7 @@ The project is built milestone by milestone, and each milestone leaves the repos
 | 6 | Run imported models; stream your own training (Live Runs) | ✅ |
 | 7 | CNN feature maps, attention heads, filter views | ✅ |
 | — | Training health alerts and two-way run controls ([ADR 0008](docs/decisions/0008-run-health-and-controls.md)) | ✅ |
+| — | Live network graph for live runs (2D/3D, colored by activations, gradients or dead units) and demo set: MLP, CNN, self-attention, autoencoder ([ADR 0009](docs/decisions/0009-live-run-graphs.md)) | ✅ |
 | — | System and GPU telemetry with ETA in Live Runs; heavy-model support in the Model Explorer (wrapped 2D/3D layouts, photo inputs, capture on request, per-map contrast, video tensors) and [benchmarks](docs/vision-benchmarks.md) | ✅ |
 | Next | Learning Mode, saved projects, deployment | planned |
 

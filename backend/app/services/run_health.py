@@ -304,9 +304,12 @@ class HealthRules:
         )
 
     def _system(self, system: StepSystem, found: list[Finding]) -> None:
+        # An idle GPU matters only if the script trains on it (CPU-only
+        # scripts on a machine with a GPU report no CUDA device).
+        on_gpu = (system.device or "").startswith("cuda")
         for gpu in system.gpus:
             label = f"GPU {gpu.index}" + (f" ({gpu.name})" if gpu.name else "")
-            if gpu.util_percent is not None:
+            if gpu.util_percent is not None and on_gpu:
                 self._persistent(
                     found,
                     ("gpu_underused", str(gpu.index)),

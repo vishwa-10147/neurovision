@@ -5,7 +5,7 @@ import { ErrorState, LoadingState } from '../../components/states/StateViews'
 import { useModelView } from '../../app/modelView'
 import { rmsFromSummary } from '../../lib/values'
 import type { ModelGraph } from '../../types/graph'
-import { Network2D } from '../visualization-2d/Network2D'
+import { Network2D, type BlockLabel } from '../visualization-2d/Network2D'
 import { hasWebGL } from '../visualization-3d/environment'
 import { MAX_3D_NODES } from '../visualization-3d/scene'
 
@@ -13,7 +13,18 @@ import { MAX_3D_NODES } from '../visualization-3d/scene'
 const Network3D = lazy(() => import('../visualization-3d/Network3D'))
 
 /** Switches between the 2D and 3D renderers; both read the same graph and selection. */
-export function GraphView({ graph, overlay }: { graph: ModelGraph; overlay: string | null }) {
+export function GraphView({
+  graph,
+  overlay,
+  values,
+  valuesLabel,
+}: {
+  graph: ModelGraph
+  overlay: string | null
+  /** Per-operator values supplied by the caller instead of the last run's (Live Runs). */
+  values?: Record<string, number> | null
+  valuesLabel?: BlockLabel
+}) {
   const { viewMode, setViewMode, forward, runValues } = useModelView()
   const [webgl] = useState(hasWebGL)
   // First (only) example's post-activation values for each layer.
@@ -25,7 +36,7 @@ export function GraphView({ graph, overlay }: { graph: ModelGraph; overlay: stri
     [forward],
   )
   // Imported models: one magnitude per operator, from its first output in the last run.
-  const blockValues = useMemo(() => {
+  const runBlockValues = useMemo(() => {
     if (!runValues) return null
     const entries = Object.entries(runValues).flatMap(([id, tensors]) => {
       const rms = rmsFromSummary(tensors[0]?.summary ?? null)
@@ -33,6 +44,7 @@ export function GraphView({ graph, overlay }: { graph: ModelGraph; overlay: stri
     })
     return Object.fromEntries(entries)
   }, [runValues])
+  const blockValues = values !== undefined ? values : runBlockValues
 
   return (
     <div className="graph-view">
@@ -47,7 +59,13 @@ export function GraphView({ graph, overlay }: { graph: ModelGraph; overlay: stri
         </button>
       </div>
       {viewMode === '2d' ? (
-        <Network2D graph={graph} overlay={overlay} activations={activations} blockValues={blockValues} />
+        <Network2D
+          graph={graph}
+          overlay={overlay}
+          activations={activations}
+          blockValues={blockValues}
+          blockLabel={valuesLabel}
+        />
       ) : !webgl || graph.nodes.length > MAX_3D_NODES ? (
         <div className="graph-view-fallback">
           <ErrorState
@@ -78,7 +96,7 @@ export function GraphView({ graph, overlay }: { graph: ModelGraph; overlay: stri
           )}
         >
           <Suspense fallback={<LoadingState label="Loading the 3D view…" />}>
-            <Network3D graph={graph} overlay={overlay} />
+            <Network3D graph={graph} overlay={overlay} blockValues={blockValues} />
           </Suspense>
         </ErrorBoundary>
       )}

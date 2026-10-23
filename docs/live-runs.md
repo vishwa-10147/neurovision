@@ -114,6 +114,9 @@ measures each `nn.ReLU`/`ReLU6`/`LeakyReLU`/`ELU`/`GELU`/`SiLU`/`Tanh`/
 -   Functional activations (`F.relu`) are not seen; a module used more
     than once reports its last use. Models with more than 32 parameter
     groups are grouped by top-level module.
+-   With an `optimizer`, the update ratio is the average per optimizer
+    step since the previous `collect()` (steps are counted with a step
+    hook), so collecting once per epoch does not inflate it.
 -   With mixed precision, `GradScaler` skips steps whose fp16 gradients
     overflowed (and lowers its scale); their gradients are inf by design.
     Skip `collect()` on those steps, or the run shows a non-finite
@@ -130,6 +133,35 @@ saturated units, loss spikes, plateaus, and overfitting (`val_loss`
 rising while `loss` falls). Each one quotes the measured numbers and
 suggests what to try. The rules are listed in
 [ADR 0008](decisions/0008-run-health-and-controls.md).
+
+## See the network while it trains
+
+Pass the model and one input batch to `start_run`, and Live Runs shows
+the network's graph in 2D and 3D next to the charts, colored every step:
+
+``` python
+probe = nv.ActivationProbe.by_name(model, ["features.1", "classifier.2"], x_val[:1])
+run = nv.start_run("my CNN", total_epochs=30, model=model, example_input=x_val[:1])
+```
+
+-   The script exports the model to ONNX (PyTorch's TorchScript
+    exporter) and uploads it to the import endpoint; the run is linked to
+    the imported graph. If export or upload fails, the run starts without
+    a graph and the reason is logged.
+-   **Color by:** *Activation size* (RMS of each layer's output, from
+    `HealthMonitor` and `ActivationProbe`), *Gradient norm* (per module
+    that owns weights), or *Dead units* (ReLU family). Select an operator
+    to see its module's numbers.
+-   Values are placed **by module name**: use module names
+    (`ActivationProbe.by_name`) as probe labels; `HealthMonitor` already
+    does. Operators whose module reported nothing stay uncolored; names
+    that match no operator are listed.
+-   Which models export, and what to do when one does not, is in
+    [supported models](supported-models.md). Demos for an MLP, a CNN, a
+    self-attention model and an autoencoder are in
+    [`sdk/examples`](../sdk/examples/README.md).
+
+![Digits CNN training live, colored by gradient norm](images/demos/cnn-gradient-norms.png)
 
 ## System use, speed and ETA
 
@@ -157,7 +189,7 @@ keeps the ETA right when you log several times per epoch. Pass
 are optional: without them only timing is sent.
 
 The rules add two alerts from these figures: a GPU that stays **under
-20 % busy** for 5 logged steps (the data loader or CPU preprocessing is
+20 % busy** for 5 logged steps while the script trains on CUDA (the data loader or CPU preprocessing is
 usually the bottleneck, or the model is on the CPU), and GPU memory
 **95 % full** (an out-of-memory error is near).
 

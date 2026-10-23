@@ -162,8 +162,10 @@ class TestLoss:
         assert all(f == [] for f in feed(rules, steps))
 
 
-def gpu(**fields: Any) -> StepSystem:
-    return StepSystem.model_validate({"gpus": [{"index": 0, "name": "RTX", **fields}]})
+def gpu(device: str | None = "cuda:0", **fields: Any) -> StepSystem:
+    return StepSystem.model_validate(
+        {"device": device, "gpus": [{"index": 0, "name": "RTX", **fields}]}
+    )
 
 
 class TestSystem:
@@ -175,6 +177,14 @@ class TestSystem:
         ]
         assert found[GPU_UNDERUSED_STEPS - 1] == ["gpu_underused"]
         assert sum(f == ["gpu_underused"] for f in found) == 1
+
+    def test_idle_gpu_is_fine_when_the_script_trains_on_the_cpu(self) -> None:
+        rules = HealthRules()
+        found = [
+            kinds(rules.observe({}, None, gpu(device=None, util_percent=0.0)))
+            for _ in range(GPU_UNDERUSED_STEPS + 2)
+        ]
+        assert all(f == [] for f in found)
 
     def test_busy_gpu_breaks_the_streak(self) -> None:
         rules = HealthRules()

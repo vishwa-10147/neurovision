@@ -20,6 +20,8 @@ export interface WatchedRun {
   controls: CommandKind[]
   paused: boolean
   learningRate: number | null
+  /** A model in NeuroVision the run is linked to (its graph), if any. */
+  modelId: string | null
 }
 
 /** Global health numbers per step, for trend charts. */
@@ -96,6 +98,7 @@ export const useLiveRunStore = create<LiveRunState>()((set, get) => ({
         controls: info.controls,
         paused: false,
         learningRate: info.learning_rate,
+        modelId: info.model_id,
       },
       ...EMPTY,
       stream: 'idle',

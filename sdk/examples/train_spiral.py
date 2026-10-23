@@ -3,8 +3,9 @@
 Trains a small MLP on a synthetic 3-arm spiral (no downloads) and logs loss,
 accuracy, post-activation values of two hidden layers, and training-health
 statistics after every epoch. Open NeuroVision → Live runs while it trains:
-health alerts appear there, and you can pause, resume, stop, save a
-checkpoint, or change the learning rate from the dashboard.
+the network's graph is shown colored by each layer's activity, health
+alerts appear there, and you can pause, resume, stop, save a checkpoint, or
+change the learning rate from the dashboard.
 
     cd sdk/examples
     python train_spiral.py --url http://127.0.0.1:8001
@@ -80,10 +81,9 @@ def main() -> None:
     model = Net()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
-    # Post-activation values for one fixed validation example.
-    probe = nv.ActivationProbe(
-        model, {"hidden_1 (ReLU)": model.act1, "hidden_2 (tanh)": model.act2}, x_val[:1]
-    )
+    # Post-activation values for one fixed validation example, labeled by
+    # module name so Live Runs can place them on the model's graph.
+    probe = nv.ActivationProbe.by_name(model, ["act1", "act2"], x_val[:1])
     # Gradient, weight, update and activation statistics for health alerts.
     monitor = nv.HealthMonitor(model, optimizer=optimizer, probe_batch=x_val[:64])
     checkpoints = Path(__file__).resolve().parent / "checkpoints"
@@ -95,14 +95,18 @@ def main() -> None:
         torch.save({"model": model.state_dict(), "epoch": epoch}, path)
         return path.name
 
-    with nv.start_run(
-        "Spiral MLP",
-        total_epochs=args.epochs,
-        url=args.url,
-        control=True,
-        optimizer=optimizer,
-        on_checkpoint=save_checkpoint,
-    ) as run:
+    with (
+        nv.start_run(
+            "Spiral MLP",
+            total_epochs=args.epochs,
+            url=args.url,
+            model=model,  # Linked: Live Runs shows this network's graph.
+            example_input=x_val[:1],
+            control=True,
+            optimizer=optimizer,
+            on_checkpoint=save_checkpoint,
+        ) as run
+    ):
         step = 0
         for epoch in range(1, args.epochs + 1):
             correct = total = 0

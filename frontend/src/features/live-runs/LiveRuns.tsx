@@ -10,6 +10,7 @@ import { ActivationStrips } from '../training-lab/TrainingResults'
 import { useEventStream } from '../training-lab/useTrainingStream'
 import { RunControls } from './RunControls'
 import { LayerHealth, RunAlerts } from './RunHealth'
+import { LiveGraph } from './LiveGraph'
 import { RunSystem } from './RunSystem'
 import { formatDuration, systemRow } from './system'
 
@@ -93,6 +94,15 @@ export function LiveRuns() {
                   <ErrorState error={new Error('Lost the live connection to this run.')} onRetry={reconnect} />
                 )}
               </div>
+              {run.modelId && (
+                <LiveGraph
+                  key={run.modelId}
+                  modelId={run.modelId}
+                  runName={run.name}
+                  health={health}
+                  activations={activations}
+                />
+              )}
               {points.length > 0 && (
                 <ErrorBoundary
                   fallback={(_, reset) => <ErrorState error={new Error('The charts could not be shown.')} onRetry={reset} />}

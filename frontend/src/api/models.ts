@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { DenseNetworkConfig } from '../types/architecture'
-import { ModelGraphSchema } from '../types/graph'
-import { request } from './client'
+import { ModelGraphSchema, type ModelGraph } from '../types/graph'
+import { getJson, request } from './client'
 
 export const EducationalModelCreatedSchema = z.object({
   model_id: z.string(),
@@ -19,4 +19,9 @@ export function createEducationalModel(
     body: config,
     signal,
   })
+}
+
+/** The graph of any stored model, e.g. one an external run is linked to. */
+export function getModelGraph(modelId: string, signal?: AbortSignal): Promise<ModelGraph> {
+  return getJson(`/models/${encodeURIComponent(modelId)}/graph`, ModelGraphSchema, signal)
 }

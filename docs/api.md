@@ -248,7 +248,7 @@ measured by the script; all numbers are finite and non-negative:
 | `gpus` | ≤ 8: `{index, name, util_percent (0–100), mem_used_bytes, mem_total_bytes, temperature_c, power_w}` |
 
 Two rules read them: `gpu_underused` (info: a GPU ≤ 20 % busy for 5
-logged steps in a row) and `gpu_memory_high` (warning: ≥ 95 % of a
+logged steps in a row, when `device` is a CUDA device) and `gpu_memory_high` (warning: ≥ 95 % of a
 GPU's memory in use).
 
 The server's health rules turn these (and the `loss` / `val_loss`
