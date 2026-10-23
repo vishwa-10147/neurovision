@@ -35,3 +35,8 @@ data/
 .DS_Store
 Thumbs.db
 *.log
+
+# Heavy-model benchmarks: GPU environment, downloaded weights, exports
+bench/.venv-gpu/
+bench/weights/
+bench/exports/

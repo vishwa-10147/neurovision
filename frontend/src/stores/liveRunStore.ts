@@ -5,7 +5,7 @@
  * reports them (pending → applied/rejected/expired), never as assumed.
  */
 import { create } from 'zustand'
-import type { CommandKind, RunAlert, RunCommand, StepHealth, TrainingEvent } from '../types/events'
+import type { CommandKind, RunAlert, RunCommand, StepHealth, StepSystem, TrainingEvent } from '../types/events'
 import type { RunInfo, RunPoint, RunStatus } from '../types/runs'
 import type { StreamState } from './trainingStore'
 
@@ -29,6 +29,16 @@ export interface HealthPoint {
   learning_rate?: number
 }
 
+/** Resource use per step, for trend charts (first GPU only). */
+export interface SystemPoint {
+  step: number
+  cpu_percent?: number
+  gpu_util_percent?: number
+  gpu_memory_percent?: number
+  samples_per_s?: number
+  step_time_s?: number
+}
+
 /** Health trend charts keep at most this many points (evenly thinned). */
 export const MAX_HEALTH_POINTS = 2000
 
@@ -40,6 +50,9 @@ interface LiveRunState {
   /** Latest step's per-layer health statistics. */
   health: { step: number; stats: StepHealth } | null
   healthPoints: HealthPoint[]
+  /** Latest step's resource use and timing. */
+  system: { step: number; stats: StepSystem } | null
+  systemPoints: SystemPoint[]
   /** Newest first. */
   alerts: RunAlert[]
   /** Latest known state of each command, by id. */
@@ -59,6 +72,8 @@ const EMPTY = {
   activations: {} as Record<string, number[]>,
   health: null,
   healthPoints: [] as HealthPoint[],
+  system: null,
+  systemPoints: [] as SystemPoint[],
   alerts: [] as RunAlert[],
   commands: {} as Record<number, RunCommand>,
 }
@@ -96,6 +111,8 @@ export const useLiveRunStore = create<LiveRunState>()((set, get) => ({
     let activations = state.activations
     let health = state.health
     let healthPoints = state.healthPoints
+    let system = state.system
+    let systemPoints = state.systemPoints
     let alerts = state.alerts
     let commands = state.commands
     for (const event of events) {
@@ -127,6 +144,11 @@ export const useLiveRunStore = create<LiveRunState>()((set, get) => ({
               healthPoints.push(point)
             }
           }
+          if (event.system) {
+            system = { step: event.step, stats: event.system }
+            if (systemPoints === state.systemPoints) systemPoints = [...systemPoints]
+            systemPoints.push(systemPoint(event.step, event.system))
+          }
           break
         }
         case 'run.command': {
@@ -153,7 +175,8 @@ export const useLiveRunStore = create<LiveRunState>()((set, get) => ({
       }
     }
     if (healthPoints.length > MAX_HEALTH_POINTS) healthPoints = thin(healthPoints, MAX_HEALTH_POINTS)
-    set({ run: nextRun, points, activations, health, healthPoints, alerts, commands })
+    if (systemPoints.length > MAX_HEALTH_POINTS) systemPoints = thin(systemPoints, MAX_HEALTH_POINTS)
+    set({ run: nextRun, points, activations, health, healthPoints, system, systemPoints, alerts, commands })
   },
   recordCommand: (command) => {
     const known = get().commands[command.command_id]
@@ -166,4 +189,17 @@ export const useLiveRunStore = create<LiveRunState>()((set, get) => ({
 function thin<T>(rows: T[], limit: number): T[] {
   const stride = Math.ceil(rows.length / (limit - 1))
   return rows.filter((_, i) => i % stride === 0 || i === rows.length - 1)
+}
+
+function systemPoint(step: number, stats: StepSystem): SystemPoint {
+  const point: SystemPoint = { step }
+  if (stats.cpu_percent !== null) point.cpu_percent = stats.cpu_percent
+  const gpu = stats.gpus[0]
+  if (gpu?.util_percent != null) point.gpu_util_percent = gpu.util_percent
+  if (gpu?.mem_used_bytes != null && gpu.mem_total_bytes) {
+    point.gpu_memory_percent = (gpu.mem_used_bytes / gpu.mem_total_bytes) * 100
+  }
+  if (stats.samples_per_s !== null) point.samples_per_s = stats.samples_per_s
+  if (stats.step_time_s !== null) point.step_time_s = stats.step_time_s
+  return point
 }

@@ -25,6 +25,9 @@ export interface ModelView {
     run: RunResponse | null
     attention: AttentionCandidate[]
     openViewer: (target: ViewerTarget) => void
+    /** Repeat the last run with this operator's output captured (large models). */
+    captureAndRun?: (nodeId: string) => Promise<RunResponse | null>
+    capturing?: boolean
   }
 }
 

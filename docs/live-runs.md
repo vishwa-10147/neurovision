@@ -114,6 +114,11 @@ measures each `nn.ReLU`/`ReLU6`/`LeakyReLU`/`ELU`/`GELU`/`SiLU`/`Tanh`/
 -   Functional activations (`F.relu`) are not seen; a module used more
     than once reports its last use. Models with more than 32 parameter
     groups are grouped by top-level module.
+-   With mixed precision, `GradScaler` skips steps whose fp16 gradients
+    overflowed (and lowers its scale); their gradients are inf by design.
+    Skip `collect()` on those steps, or the run shows a non-finite
+    gradients alert: compare `scaler.get_scale()` before and after
+    `scaler.update()`.
 -   Even without a monitor, a metric that becomes NaN or infinite is
     reported by name, so the dashboard raises a critical alert instead of
     the value silently disappearing.
@@ -125,6 +130,44 @@ saturated units, loss spikes, plateaus, and overfitting (`val_loss`
 rising while `loss` falls). Each one quotes the measured numbers and
 suggests what to try. The rules are listed in
 [ADR 0008](decisions/0008-run-health-and-controls.md).
+
+## System use, speed and ETA
+
+Every logged step also carries timing and resource figures, shown in
+the **System & speed** panel with charts over the run:
+
+-   **Always:** elapsed time, time since the previous logged step, and an
+    **ETA** from the recent rate of progress (the last 20 logged steps)
+    towards `total_epochs`.
+-   **With `psutil`:** machine CPU load and RAM, and the script's own
+    CPU and memory.
+-   **With `nvidia-ml-py`** (NVIDIA GPUs): per GPU, its load, memory,
+    temperature and power draw. If PyTorch has initialized CUDA, the
+    memory its allocator holds is reported too.
+
+``` python
+run.log(epoch=epoch, step=step, metrics={"loss": loss},
+        samples=len(batch) * log_every,              # throughput
+        progress=epoch - 1 + batch_index / batches)  # ETA within an epoch
+```
+
+`samples` gives a throughput figure; `progress` (fractional epochs done)
+keeps the ETA right when you log several times per epoch. Pass
+`track_system=False` to `start_run` to send none of this. Both packages
+are optional: without them only timing is sent.
+
+The rules add two alerts from these figures: a GPU that stays **under
+20 % busy** for 5 logged steps (the data loader or CPU preprocessing is
+usually the bottleneck, or the model is on the CPU), and GPU memory
+**95 % full** (an out-of-memory error is near).
+
+Measured figures are the script's own view: GPU load is NVML's
+"utilization" (the share of time a kernel was running, not how much of
+the GPU it used), and GPU memory includes other processes on that GPU.
+
+`bench/train_live.py` fine-tunes pretrained torchvision models on the
+GPU with all of this turned on; see
+[vision benchmarks](vision-benchmarks.md).
 
 ## Controlling the run from the dashboard
 

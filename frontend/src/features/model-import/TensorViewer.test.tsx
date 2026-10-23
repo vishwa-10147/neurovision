@@ -85,6 +85,26 @@ describe('Feature maps', () => {
     expect(screen.getByLabelText('Map legend')).toHaveTextContent('full color at ±5.000 (shared across all maps)')
   })
 
+  it('can show each map on its own scale so weak channels stay visible', async () => {
+    serveViews(3, 4, (i, r, c) => i - r + c)
+    renderViewer(tensorTarget('node_0', 0, [1, 3, 4, 4], 'conv_out'))
+    await screen.findByRole('img', { name: 'channel 0, 4 by 4' })
+    expect(screen.getByLabelText('Map legend')).toHaveTextContent('±5.000 (shared across all maps)')
+    await userEvent.click(screen.getByRole('button', { name: 'Each map on its own scale' }))
+    // Channel 0 spans -3 … 3 on its own.
+    expect(screen.getByLabelText('Map legend')).toHaveTextContent('±3.000 for this map (each map uses its own range)')
+    expect(screen.getByRole('button', { name: 'Each map on its own scale' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('can scale an attention head to its own largest weight', async () => {
+    serveViews(2, 3, (i, r, c) => (c === (r + i) % 3 ? 0.8 : 0.1))
+    const attention = { node_id: 'node_0', name: 'softmax', tensor: 'w', shape: ['batch', 2, 'seq', 'seq'], layout: ['batch', 'heads', 'query', 'key'] }
+    renderViewer(tensorTarget('node_0', 0, [1, 2, 3, 3], 'w', attention))
+    await screen.findByRole('list', { name: 'heads overview' })
+    await userEvent.click(screen.getByRole('button', { name: 'Each map on its own scale' }))
+    expect(await screen.findByLabelText('Map legend')).toHaveTextContent("to 0.800 (blue), this head's largest weight")
+  })
+
   it('labels attention by query and key on a fixed 0–1 scale', async () => {
     serveViews(2, 3, (i, r, c) => (c === (r + i) % 3 ? 0.8 : 0.1))
     const attention = { node_id: 'node_0', name: 'softmax', tensor: 'w', shape: ['batch', 2, 'seq', 'seq'], layout: ['batch', 'heads', 'query', 'key'] }

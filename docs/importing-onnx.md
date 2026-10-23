@@ -44,7 +44,10 @@ above.)
 -   **Graph:** one block per operator, labeled with its type (`Conv`,
     `Relu`, `Add`, …), plus blocks for graph inputs and outputs. Links are
     the tensors passed between operators. 2D and 3D views share the
-    selection.
+    selection. Chains longer than 32 operators wrap into rows (left to
+    right, then right to left; in 3D the rows are laid out in depth), so
+    a ResNet-50 or ViT fits the screen; constants and weight arithmetic
+    are placed just before the operator that uses them.
 -   **Import report:** file, producer, opsets, operator / tensor /
     initializer counts, what you can and cannot do with the model, and
     warnings.
@@ -62,6 +65,12 @@ its type and shape:
     ones (e.g. `batch`) default to 1 and can be changed.
 -   Values can be random (seeded, so repeatable), zeros, ones, evenly
     spaced from −1 to 1, or typed in (up to 4,096 values).
+-   Image inputs (`[batch, 1 or 3, height, width]`) can also take a
+    **Photo**: it is decoded in the browser, scaled to cover the input
+    and center-cropped (like torchvision's Resize + CenterCrop), then
+    converted to NCHW values in 0–1 or normalized with ImageNet's
+    mean/std (the default; what torchvision's pretrained models expect).
+    Only the pixel values are sent.
 
 After **Run** you get:
 
@@ -87,7 +96,7 @@ four decimals.
 | Time per run | 10 s (`NEUROVISION_INFERENCE_TIMEOUT_SECONDS`); the worker is stopped and restarted |
 | Worker memory | 2 GiB on Linux/macOS (`NEUROVISION_INFERENCE_MAX_MEMORY_BYTES`); **not enforced on Windows** |
 | Input size | 1,000,000 values in total; each dimension 1–100,000 |
-| Intermediates | All operators up to 200 operators; above that only those you request (API `capture`) |
+| Intermediates | All operators up to 200 operators; above that only those you request: **Capture this operator and run again** in the inspector (or **View attention**) re-runs with it captured, and later runs keep capturing it (API `capture`) |
 | Values returned per tensor | First 4,096, plus a summary of all of them |
 | Concurrency | One run at a time (others get "try again") |
 
@@ -111,6 +120,16 @@ After a run, the inspector offers views of the real tensors:
     head as a query × key matrix on a fixed 0–1 scale; each row is one
     query position's weights over the key positions and sums to 1. Try
     the **Self-attention** sample with a sequence length of 7 or more.
+-   **Contrast.** **One scale for all maps** (the default) keeps maps
+    comparable. **Each map on its own scale** scales every channel (or
+    attention head, from 0 to its own largest weight) separately, so
+    weak channels show their shape: in a ResNet most ReLU outputs are far
+    below the largest one, and a ViT head spreads its weights over 197
+    tokens (about 0.005 each), so on shared or 0–1 scales they look
+    blank.
+-   **Video and volumes.** 5D tensors are read as `[batch, channels,
+    frames, height, width]` (PyTorch's Conv3d order): pick a channel and
+    every frame is shown as a map.
 -   **View filters** on `Conv` weights draws each kernel
     `[out, in, kH, kW]` as a small map: one row per filter, one column
     per input channel.
@@ -145,7 +164,7 @@ PyTorch: the per-head weights shown match PyTorch's own to 1e-5.
 | `If` / `Loop` / `Scan` subgraphs | Shown as one operator with a summary of each subgraph; subgraphs are not expanded (warning). |
 | NaN or infinite weights | Counted, left out of the summary, and shown as `NaN/∞`. |
 | String tensors | Shape shown; values cannot be summarized. |
-| Files over 64 MB | Rejected with `413`; raise `NEUROVISION_MAX_UPLOAD_BYTES` if needed. |
+| Files over 64 MB | Rejected with `413`; raise `NEUROVISION_MAX_UPLOAD_BYTES` if needed (512 MB was enough for ViT-B/16's 331 MB export). The page checks files against the server's limit from `GET /health`. |
 | More than 5,000 operators | Rejected with a clear message. |
 | Not ONNX (e.g. `.pt`, `.pb`, `.h5`) | Rejected; export to ONNX first. PyTorch checkpoints are never unpickled. |
 

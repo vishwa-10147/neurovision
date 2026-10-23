@@ -20,7 +20,11 @@ export function ImportReportPanel({
   report,
   run = null,
   onView,
+  onCapture,
+  capturing = false,
 }: {
+  onCapture?: (nodeId: string) => Promise<RunResponse | null>
+  capturing?: boolean
   graph: ModelGraph
   report: ImportReport
   run?: RunResponse | null
@@ -96,16 +100,20 @@ export function ImportReportPanel({
                     <button
                       type="button"
                       className="link-button"
-                      disabled={!run?.retained}
-                      onClick={() => {
+                      disabled={!run?.retained || capturing}
+                      onClick={async () => {
                         // Use the run's real shape: symbolic sizes are filled in by then.
-                        const measured = [...(run?.intermediates ?? []), ...(run?.outputs ?? [])].find(
-                          (t) => t.node_id === a.node_id && t.name === a.tensor,
-                        )
+                        const find = (r: RunResponse | null) =>
+                          [...(r?.intermediates ?? []), ...(r?.outputs ?? [])].find(
+                            (t) => t.node_id === a.node_id && t.name === a.tensor,
+                          )
+                        let measured = find(run)
+                        // Large models keep only requested operators: capture this one first.
+                        if (!measured && onCapture) measured = find(await onCapture(a.node_id))
                         if (measured) onView(tensorTarget(a.node_id, Math.max(0, output), measured.shape, a.tensor, a))
                       }}
                     >
-                      View attention
+                      {capturing ? 'Running…' : 'View attention'}
                     </button>
                   )}
                 </li>

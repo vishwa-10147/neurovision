@@ -66,7 +66,7 @@ def start(server: FakeServer, **options: Any) -> nv.Run:
 
 
 def test_creates_logs_and_finishes(server: FakeServer) -> None:
-    run = start(server)
+    run = start(server, track_system=False)
     assert run.enabled and run.run_id == "run_abc"
     assert server.requests[0][2] == {"name": "test", "total_epochs": 5}
     for epoch in range(1, 4):
@@ -599,3 +599,98 @@ def test_health_end_to_end_with_controls(live_server: str) -> None:
     assert info["pending_commands"] == 0
     # A constant loss for 20 logged steps is a plateau; nothing else is wrong.
     assert epoch < 20 or info["alerts"] >= 1
+
+
+# System statistics -----------------------------------------------------------
+
+
+class FakeSystem:
+    def __init__(self, stats: dict[str, Any]) -> None:
+        self.stats = stats
+
+    def sample(self) -> dict[str, Any]:
+        return dict(self.stats)
+
+
+def test_sends_timing_eta_and_throughput(server: FakeServer) -> None:
+    run = nv.start_run("t", total_epochs=10, url="http://nv.test", transport=server)
+    clock = iter([100.0, 101.0, 102.0, 104.0])
+    run._started = 100.0
+    run._system = FakeSystem({})
+    import neurovision_client
+
+    real = neurovision_client.time.monotonic
+    neurovision_client.time.monotonic = lambda: next(clock)  # type: ignore[assignment]
+    try:
+        for epoch in (1, 2, 3, 4):
+            run.log(epoch=epoch, metrics={"loss": 1.0}, samples=64)
+    finally:
+        neurovision_client.time.monotonic = real  # type: ignore[assignment]
+    run.finish()
+    systems = [e["system"] for e in server.events()]
+    assert systems[0] == {"elapsed_s": 0.0}
+    assert systems[1]["step_time_s"] == 1.0 and systems[1]["samples_per_s"] == 64.0
+    # Epochs 1..4 over 4 s: 0.75 epochs/s, 6 epochs left -> 8 s.
+    assert systems[3]["eta_s"] == pytest.approx(8.0)
+    assert systems[3]["elapsed_s"] == 4.0
+
+
+def test_cleans_system_stats(server: FakeServer) -> None:
+    run = start(server)
+    run._system = FakeSystem(
+        {
+            "cpu_percent": 250.0,
+            "ram_used_bytes": float("nan"),
+            "device": "cuda:0",
+            "gpus": [
+                {"index": 0, "name": "GPU", "util_percent": 87.0, "power_w": 55.5},
+                {"index": 1, "util_percent": float("inf"), "temperature_c": 61.0},
+            ],
+        }
+    )
+    run.log(epoch=1, metrics={"loss": 1.0})
+    run.finish()
+    system = server.events()[0]["system"]
+    assert "ram_used_bytes" not in system
+    assert "cpu_percent" not in system  # Out of range, so dropped.
+    assert system["device"] == "cuda:0"
+    assert system["gpus"][0] == {
+        "index": 0,
+        "name": "GPU",
+        "util_percent": 87.0,
+        "power_w": 55.5,
+    }
+    assert system["gpus"][1] == {"index": 1, "temperature_c": 61.0}
+
+
+def test_system_monitor_reads_this_machine() -> None:
+    stats = nv.SystemMonitor().sample()
+    # psutil may be missing; when present the numbers are sane.
+    if "cpu_percent" in stats:
+        assert 0 <= stats["cpu_percent"] <= 100
+        assert stats["ram_total_bytes"] > 0
+
+
+def test_track_system_off_sends_nothing(server: FakeServer) -> None:
+    run = start(server, track_system=False)
+    run.log(epoch=1, metrics={"loss": 1.0})
+    run.finish()
+    assert "system" not in server.events()[0]
+
+
+def test_eta_follows_fractional_progress(server: FakeServer) -> None:
+    run = nv.start_run("t", total_epochs=2, url="http://nv.test", transport=server)
+    clock = iter([10.0, 11.0])
+    run._system = FakeSystem({})
+    import neurovision_client
+
+    real = neurovision_client.time.monotonic
+    neurovision_client.time.monotonic = lambda: next(clock)  # type: ignore[assignment]
+    try:
+        # Both inside epoch 1: a quarter of an epoch per second.
+        run.log(epoch=1, metrics={"loss": 1.0}, progress=0.25)
+        run.log(epoch=1, metrics={"loss": 1.0}, progress=0.5)
+    finally:
+        neurovision_client.time.monotonic = real  # type: ignore[assignment]
+    run.finish()
+    assert server.events()[1]["system"]["eta_s"] == pytest.approx(6.0)

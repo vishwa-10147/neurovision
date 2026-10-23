@@ -8,6 +8,7 @@ export const MAX_METRICS = 16
 export const MAX_ACTIVATION_LAYERS = 8
 export const MAX_VALUES_PER_LAYER = 256
 export const MAX_HEALTH_LAYERS = 32
+export const MAX_GPUS = 8
 
 const Identifier = z.string().min(1).max(256)
 const Count = z.number().int().nonnegative()
@@ -50,6 +51,35 @@ export const StepHealthSchema = z.strictObject({
     .record(Identifier, ActivationHealthSchema)
     .refine(atMost(MAX_HEALTH_LAYERS), `at most ${MAX_HEALTH_LAYERS} activation layers`)
     .default({}),
+})
+
+/** One GPU as seen by the training script (NVML or torch.cuda). */
+export const GpuStatsSchema = z.strictObject({
+  index: Count,
+  name: Message.nullable().default(null),
+  util_percent: z.number().min(0).max(100).nullable().default(null),
+  mem_used_bytes: NonNegative.nullable().default(null),
+  mem_total_bytes: NonNegative.nullable().default(null),
+  temperature_c: NonNegative.nullable().default(null),
+  power_w: NonNegative.nullable().default(null),
+})
+
+/** Resource use and timing measured by the script for one step. */
+export const StepSystemSchema = z.strictObject({
+  elapsed_s: NonNegative.nullable().default(null),
+  step_time_s: NonNegative.nullable().default(null),
+  /** Estimated seconds left, from the script's progress over epochs. */
+  eta_s: NonNegative.nullable().default(null),
+  samples_per_s: NonNegative.nullable().default(null),
+  cpu_percent: z.number().min(0).max(100).nullable().default(null),
+  process_cpu_percent: NonNegative.nullable().default(null),
+  ram_used_bytes: NonNegative.nullable().default(null),
+  ram_total_bytes: NonNegative.nullable().default(null),
+  process_rss_bytes: NonNegative.nullable().default(null),
+  cuda_allocated_bytes: NonNegative.nullable().default(null),
+  cuda_reserved_bytes: NonNegative.nullable().default(null),
+  device: z.string().max(64).nullable().default(null),
+  gpus: z.array(GpuStatsSchema).max(MAX_GPUS).default([]),
 })
 
 export const COMMAND_KINDS = ['pause', 'resume', 'stop', 'checkpoint', 'set_lr'] as const
@@ -104,6 +134,8 @@ export const TrainingStepSchema = z.strictObject({
     .default({}),
   /** External runs only: statistics the script measured. */
   health: StepHealthSchema.nullable().default(null),
+  /** External runs only: CPU, RAM and GPU use, timing and ETA. */
+  system: StepSystemSchema.nullable().default(null),
 })
 
 export const TrainingCompletedSchema = z.strictObject({
@@ -155,5 +187,6 @@ export const TrainingEventSchema = z.discriminatedUnion('event_type', [
 export type TrainingEvent = z.infer<typeof TrainingEventSchema>
 export type TrainingStep = z.infer<typeof TrainingStepSchema>
 export type StepHealth = z.infer<typeof StepHealthSchema>
+export type StepSystem = z.infer<typeof StepSystemSchema>
 export type RunCommand = z.infer<typeof RunCommandSchema>
 export type RunAlert = z.infer<typeof RunAlertSchema>

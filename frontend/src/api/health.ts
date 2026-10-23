@@ -6,6 +6,8 @@ export const HealthResponseSchema = z.object({
   service: z.string(),
   version: z.string(),
   environment: z.string(),
+  /** Older backends do not report it; the client then assumes the default. */
+  max_upload_bytes: z.number().int().positive().optional(),
 })
 
 export type HealthResponse = z.infer<typeof HealthResponseSchema>

@@ -164,6 +164,7 @@ class ExternalRun(EventStream):
                         metrics=logged.metrics,
                         selected_activations=logged.selected_activations,
                         health=logged.health,
+                        system=logged.system,
                     ).model_dump(mode="json")
                 )
                 self.step, self.epoch = logged.step, logged.epoch
@@ -173,7 +174,9 @@ class ExternalRun(EventStream):
                     and logged.health.learning_rate is not None
                 ):
                     self.learning_rate = logged.health.learning_rate
-                for finding in self._rules.observe(logged.metrics, logged.health):
+                for finding in self._rules.observe(
+                    logged.metrics, logged.health, logged.system
+                ):
                     self._alert(
                         logged.step,
                         finding.kind,

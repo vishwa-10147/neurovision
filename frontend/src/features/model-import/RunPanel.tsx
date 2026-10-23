@@ -5,7 +5,8 @@ import { ErrorState, LoadingState } from '../../components/states/StateViews'
 import { formatValue } from '../../lib/values'
 import { useExplorerStore } from '../../stores/explorerStore'
 import { FILLS, RUN_LIMITS, type ImportReport, type RunInput, type TensorValues } from '../../types/imports'
-import { initialDraft, toRunInput, topValues, type Draft, type Mode } from './runInputs'
+import { PhotoPicker } from './PhotoPicker'
+import { initialDraft, photoSize, toRunInput, topValues, type Draft, type Mode } from './runInputs'
 
 const MODE_LABELS: Record<Mode, string> = {
   random: 'Random (seeded)',
@@ -13,10 +14,12 @@ const MODE_LABELS: Record<Mode, string> = {
   ones: 'All ones',
   range: 'Evenly spaced −1 → 1',
   custom: 'Type values',
+  image: 'Photo',
 }
 export function RunPanel({ modelId, report }: { modelId: string; report: ImportReport }) {
   const run = useExplorerStore((s) => s.run)
   const setRun = useExplorerStore((s) => s.setRun)
+  const capture = useExplorerStore((s) => s.capture)
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
     Object.fromEntries(report.inputs.map((spec) => [spec.name, initialDraft(spec)])),
   )
@@ -48,7 +51,7 @@ export function RunPanel({ modelId, report }: { modelId: string; report: ImportR
     const inputs = Object.fromEntries(checked.map(({ spec, result }) => [spec.name, (result as { input: RunInput }).input]))
     setStatus({ state: 'running' })
     try {
-      setRun(await runImported(modelId, inputs))
+      setRun(await runImported(modelId, inputs, undefined, capture), inputs)
       setStatus({ state: 'idle' })
     } catch (error) {
       setStatus({ state: 'error', error })
@@ -108,7 +111,7 @@ export function RunPanel({ modelId, report }: { modelId: string; report: ImportR
                   aria-label={`Values for ${spec.name}`}
                   onChange={(e) => update(spec.name, { mode: e.target.value as Mode })}
                 >
-                  {[...FILLS, 'custom' as const].map((m) => (
+                  {[...FILLS, 'custom' as const, ...(photoSize(draft.dims) ? ['image' as const] : [])].map((m) => (
                     <option key={m} value={m} disabled={m === 'custom' && count > RUN_LIMITS.maxTypedValues}>
                       {MODE_LABELS[m]}
                       {m === 'custom' && count > RUN_LIMITS.maxTypedValues ? ' (too many values)' : ''}
@@ -127,6 +130,14 @@ export function RunPanel({ modelId, report }: { modelId: string; report: ImportR
                     onChange={(e) => update(spec.name, { seed: e.target.value })}
                   />
                 </label>
+              )}
+              {draft.mode === 'image' && (
+                <PhotoPicker
+                  inputName={spec.name}
+                  size={photoSize(draft.dims)}
+                  draft={draft}
+                  onChange={(changes) => update(spec.name, changes)}
+                />
               )}
               {draft.mode === 'custom' && (
                 <label className="field">

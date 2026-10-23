@@ -1,0 +1,566 @@
+{
+  "machine": {
+    "cpu": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "cpu_threads": 32,
+    "ram_gib": 15.6,
+    "gpu": "NVIDIA GeForce RTX 4070 Laptop GPU",
+    "torch": "2.14.1+cu130",
+    "torch_threads": 24
+  },
+  "models": [
+    {
+      "model": "mobilenet_v3_large",
+      "family": "CNN (mobile)",
+      "task": "image classification (ImageNet-1k)",
+      "weights": "MobileNet_V3_Large_Weights.IMAGENET1K_V2",
+      "input": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "params_m": 5.48,
+      "gmacs": 0.22,
+      "reported_top1": 75.274,
+      "load_s": 0.93,
+      "predictions": {
+        "china": [
+          {
+            "label": "palace",
+            "p": 0.394
+          },
+          {
+            "label": "monastery",
+            "p": 0.2153
+          },
+          {
+            "label": "bell cote",
+            "p": 0.1405
+          },
+          {
+            "label": "castle",
+            "p": 0.0393
+          },
+          {
+            "label": "stupa",
+            "p": 0.0219
+          }
+        ],
+        "flower": [
+          {
+            "label": "sea anemone",
+            "p": 0.1453
+          },
+          {
+            "label": "chambered nautilus",
+            "p": 0.1409
+          },
+          {
+            "label": "daisy",
+            "p": 0.079
+          },
+          {
+            "label": "honeycomb",
+            "p": 0.0629
+          },
+          {
+            "label": "lampshade",
+            "p": 0.0256
+          }
+        ]
+      },
+      "cpu_latency_ms": 25.9,
+      "gpu_latency_ms": 6.13,
+      "gpu_batch": 64,
+      "gpu_throughput_per_s": 3530.7,
+      "gpu_peak_mem_mib": 575,
+      "load_during_throughput": {
+        "cpu_percent": 15.9,
+        "gpu_util_percent": 96.4,
+        "gpu_power_w": 52.0,
+        "gpu_temp_max_c": 69
+      },
+      "onnx_export_s": 0.9,
+      "onnx_mib": 20.9,
+      "onnx_operators": 140,
+      "onnx_max_abs_diff": 5.841255187988281e-06,
+      "onnx_top1_matches": true,
+      "ort_cpu_latency_ms": 1.8
+    },
+    {
+      "model": "efficientnet_b0",
+      "family": "CNN (mobile)",
+      "task": "image classification (ImageNet-1k)",
+      "weights": "EfficientNet_B0_Weights.IMAGENET1K_V1",
+      "input": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "params_m": 5.29,
+      "gmacs": 0.39,
+      "reported_top1": 77.692,
+      "load_s": 1.0,
+      "predictions": {
+        "china": [
+          {
+            "label": "palace",
+            "p": 0.555
+          },
+          {
+            "label": "monastery",
+            "p": 0.1033
+          },
+          {
+            "label": "castle",
+            "p": 0.0538
+          },
+          {
+            "label": "lakeside",
+            "p": 0.0431
+          },
+          {
+            "label": "church",
+            "p": 0.0396
+          }
+        ],
+        "flower": [
+          {
+            "label": "honeycomb",
+            "p": 0.1197
+          },
+          {
+            "label": "daisy",
+            "p": 0.0923
+          },
+          {
+            "label": "stinkhorn",
+            "p": 0.033
+          },
+          {
+            "label": "sea slug",
+            "p": 0.0211
+          },
+          {
+            "label": "mushroom",
+            "p": 0.0207
+          }
+        ]
+      },
+      "cpu_latency_ms": 34.7,
+      "gpu_latency_ms": 9.06,
+      "gpu_batch": 64,
+      "gpu_throughput_per_s": 1954.9,
+      "gpu_peak_mem_mib": 654,
+      "load_during_throughput": {
+        "cpu_percent": 26.9,
+        "gpu_util_percent": 97.0,
+        "gpu_power_w": 52.2,
+        "gpu_temp_max_c": 69
+      },
+      "onnx_export_s": 1.08,
+      "onnx_mib": 20.2,
+      "onnx_operators": 239,
+      "onnx_max_abs_diff": 9.5367431640625e-06,
+      "onnx_top1_matches": true,
+      "ort_cpu_latency_ms": 4.8
+    },
+    {
+      "model": "resnet18",
+      "family": "CNN (residual)",
+      "task": "image classification (ImageNet-1k)",
+      "weights": "ResNet18_Weights.IMAGENET1K_V1",
+      "input": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "params_m": 11.69,
+      "gmacs": 1.81,
+      "reported_top1": 69.758,
+      "load_s": 0.27,
+      "predictions": {
+        "china": [
+          {
+            "label": "bell cote",
+            "p": 0.5319
+          },
+          {
+            "label": "palace",
+            "p": 0.3127
+          },
+          {
+            "label": "monastery",
+            "p": 0.0783
+          },
+          {
+            "label": "boathouse",
+            "p": 0.0198
+          },
+          {
+            "label": "stupa",
+            "p": 0.012
+          }
+        ],
+        "flower": [
+          {
+            "label": "honeycomb",
+            "p": 0.6684
+          },
+          {
+            "label": "hen-of-the-woods",
+            "p": 0.182
+          },
+          {
+            "label": "stinkhorn",
+            "p": 0.0421
+          },
+          {
+            "label": "mushroom",
+            "p": 0.0326
+          },
+          {
+            "label": "coral fungus",
+            "p": 0.0138
+          }
+        ]
+      },
+      "cpu_latency_ms": 26.6,
+      "gpu_latency_ms": 2.83,
+      "gpu_batch": 64,
+      "gpu_throughput_per_s": 2694.2,
+      "gpu_peak_mem_mib": 747,
+      "load_during_throughput": {
+        "cpu_percent": 14.9,
+        "gpu_util_percent": 98.2,
+        "gpu_power_w": 52.6,
+        "gpu_temp_max_c": 71
+      },
+      "onnx_export_s": 0.53,
+      "onnx_mib": 44.6,
+      "onnx_operators": 49,
+      "onnx_max_abs_diff": 6.67572021484375e-06,
+      "onnx_top1_matches": true,
+      "ort_cpu_latency_ms": 5.3
+    },
+    {
+      "model": "resnet50",
+      "family": "CNN (residual)",
+      "task": "image classification (ImageNet-1k)",
+      "weights": "ResNet50_Weights.IMAGENET1K_V2",
+      "input": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "params_m": 25.56,
+      "gmacs": 4.09,
+      "reported_top1": 80.858,
+      "load_s": 3.2,
+      "predictions": {
+        "china": [
+          {
+            "label": "palace",
+            "p": 0.3716
+          },
+          {
+            "label": "castle",
+            "p": 0.1027
+          },
+          {
+            "label": "monastery",
+            "p": 0.0412
+          },
+          {
+            "label": "lakeside",
+            "p": 0.022
+          },
+          {
+            "label": "boathouse",
+            "p": 0.02
+          }
+        ],
+        "flower": [
+          {
+            "label": "daisy",
+            "p": 0.0827
+          },
+          {
+            "label": "bee",
+            "p": 0.0652
+          },
+          {
+            "label": "honeycomb",
+            "p": 0.0629
+          },
+          {
+            "label": "mushroom",
+            "p": 0.0256
+          },
+          {
+            "label": "vase",
+            "p": 0.0188
+          }
+        ]
+      },
+      "cpu_latency_ms": 63.9,
+      "gpu_latency_ms": 6.47,
+      "gpu_batch": 64,
+      "gpu_throughput_per_s": 868.6,
+      "gpu_peak_mem_mib": 638,
+      "load_during_throughput": {
+        "cpu_percent": 13.2,
+        "gpu_util_percent": 98.7,
+        "gpu_power_w": 54.0,
+        "gpu_temp_max_c": 70
+      },
+      "onnx_export_s": 1.23,
+      "onnx_mib": 97.4,
+      "onnx_operators": 122,
+      "onnx_max_abs_diff": 2.428889274597168e-05,
+      "onnx_top1_matches": true,
+      "ort_cpu_latency_ms": 12.0
+    },
+    {
+      "model": "convnext_tiny",
+      "family": "CNN (modern)",
+      "task": "image classification (ImageNet-1k)",
+      "weights": "ConvNeXt_Tiny_Weights.IMAGENET1K_V1",
+      "input": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "params_m": 28.59,
+      "gmacs": 4.46,
+      "reported_top1": 82.52,
+      "load_s": 4.19,
+      "predictions": {
+        "china": [
+          {
+            "label": "palace",
+            "p": 0.5407
+          },
+          {
+            "label": "lakeside",
+            "p": 0.0454
+          },
+          {
+            "label": "boathouse",
+            "p": 0.0387
+          },
+          {
+            "label": "monastery",
+            "p": 0.0362
+          },
+          {
+            "label": "bell cote",
+            "p": 0.0274
+          }
+        ],
+        "flower": [
+          {
+            "label": "daisy",
+            "p": 0.2341
+          },
+          {
+            "label": "vase",
+            "p": 0.0908
+          },
+          {
+            "label": "pot",
+            "p": 0.0599
+          },
+          {
+            "label": "honeycomb",
+            "p": 0.0335
+          },
+          {
+            "label": "picket fence",
+            "p": 0.0269
+          }
+        ]
+      },
+      "cpu_latency_ms": 45.5,
+      "gpu_latency_ms": 4.52,
+      "gpu_batch": 64,
+      "gpu_throughput_per_s": 751.6,
+      "gpu_peak_mem_mib": 659,
+      "load_during_throughput": {
+        "cpu_percent": 12.3,
+        "gpu_util_percent": 99.2,
+        "gpu_power_w": 54.8,
+        "gpu_temp_max_c": 73
+      },
+      "onnx_export_s": 1.05,
+      "onnx_mib": 109.1,
+      "onnx_operators": 346,
+      "onnx_max_abs_diff": 5.7220458984375e-06,
+      "onnx_top1_matches": true,
+      "ort_cpu_latency_ms": 34.7
+    },
+    {
+      "model": "vit_b_16",
+      "family": "Vision Transformer",
+      "task": "image classification (ImageNet-1k)",
+      "weights": "ViT_B_16_Weights.IMAGENET1K_V1",
+      "input": [
+        1,
+        3,
+        224,
+        224
+      ],
+      "params_m": 86.57,
+      "gmacs": 11.27,
+      "reported_top1": 81.072,
+      "load_s": 11.4,
+      "predictions": {
+        "china": [
+          {
+            "label": "palace",
+            "p": 0.4194
+          },
+          {
+            "label": "lakeside",
+            "p": 0.1809
+          },
+          {
+            "label": "boathouse",
+            "p": 0.0759
+          },
+          {
+            "label": "castle",
+            "p": 0.0457
+          },
+          {
+            "label": "monastery",
+            "p": 0.0323
+          }
+        ],
+        "flower": [
+          {
+            "label": "ant",
+            "p": 0.1334
+          },
+          {
+            "label": "vase",
+            "p": 0.1031
+          },
+          {
+            "label": "stinkhorn",
+            "p": 0.0845
+          },
+          {
+            "label": "honeycomb",
+            "p": 0.0582
+          },
+          {
+            "label": "pot",
+            "p": 0.0399
+          }
+        ]
+      },
+      "cpu_latency_ms": 134.1,
+      "gpu_latency_ms": 9.62,
+      "gpu_batch": 32,
+      "gpu_throughput_per_s": 401.3,
+      "gpu_peak_mem_mib": 698,
+      "load_during_throughput": {
+        "cpu_percent": 10.0,
+        "gpu_util_percent": 99.7,
+        "gpu_power_w": 53.4,
+        "gpu_temp_max_c": 71
+      },
+      "onnx_export_s": 3.31,
+      "onnx_mib": 330.5,
+      "onnx_operators": 1016,
+      "onnx_max_abs_diff": 1.823902130126953e-05,
+      "onnx_top1_matches": true,
+      "ort_cpu_latency_ms": 107.9
+    },
+    {
+      "model": "r3d_18",
+      "family": "3D CNN (video)",
+      "task": "video action recognition (Kinetics-400)",
+      "weights": "R3D_18_Weights.KINETICS400_V1",
+      "input": [
+        1,
+        3,
+        16,
+        112,
+        112
+      ],
+      "params_m": 33.37,
+      "gmacs": 40.7,
+      "reported_top1": 63.2,
+      "load_s": 5.17,
+      "predictions": {
+        "china": [
+          {
+            "label": "contact juggling",
+            "p": 0.3909
+          },
+          {
+            "label": "bungee jumping",
+            "p": 0.0843
+          },
+          {
+            "label": "water sliding",
+            "p": 0.0604
+          },
+          {
+            "label": "riding elephant",
+            "p": 0.032
+          },
+          {
+            "label": "parasailing",
+            "p": 0.0287
+          }
+        ],
+        "flower": [
+          {
+            "label": "scuba diving",
+            "p": 0.2069
+          },
+          {
+            "label": "diving cliff",
+            "p": 0.1516
+          },
+          {
+            "label": "cooking chicken",
+            "p": 0.0852
+          },
+          {
+            "label": "dining",
+            "p": 0.0414
+          },
+          {
+            "label": "making pizza",
+            "p": 0.0376
+          }
+        ]
+      },
+      "cpu_latency_ms": 240.7,
+      "gpu_latency_ms": 10.17,
+      "gpu_batch": 16,
+      "gpu_throughput_per_s": 186.8,
+      "gpu_peak_mem_mib": 964,
+      "load_during_throughput": {
+        "cpu_percent": 14.2,
+        "gpu_util_percent": 96.7,
+        "gpu_power_w": 54.4,
+        "gpu_temp_max_c": 71
+      },
+      "onnx_export_s": 0.98,
+      "onnx_mib": 127.3,
+      "onnx_operators": 48,
+      "onnx_max_abs_diff": 4.5299530029296875e-06,
+      "onnx_top1_matches": true,
+      "ort_cpu_latency_ms": 300.2
+    }
+  ]
+}

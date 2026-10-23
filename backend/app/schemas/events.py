@@ -68,6 +68,44 @@ class StepHealth(_Strict):
     ] = Field(default_factory=dict)
 
 
+MAX_GPUS = 8
+
+
+class GpuStats(_Strict):
+    """One GPU as seen by the training script (NVML or torch.cuda)."""
+
+    index: NonNegativeInt
+    name: Annotated[str, Field(max_length=MAX_MESSAGE_LENGTH)] | None = None
+    util_percent: Annotated[FiniteFloat, Field(ge=0, le=100)] | None = None
+    mem_used_bytes: NonNegativeFloat | None = None
+    mem_total_bytes: NonNegativeFloat | None = None
+    temperature_c: NonNegativeFloat | None = None
+    power_w: NonNegativeFloat | None = None
+
+
+class StepSystem(_Strict):
+    """Resource use and timing measured by the script for one step."""
+
+    # Seconds since the run started, and since the previous logged step.
+    elapsed_s: NonNegativeFloat | None = None
+    step_time_s: NonNegativeFloat | None = None
+    # Estimated seconds left, from the script's own progress over epochs.
+    eta_s: NonNegativeFloat | None = None
+    samples_per_s: NonNegativeFloat | None = None
+    cpu_percent: Annotated[FiniteFloat, Field(ge=0, le=100)] | None = None
+    process_cpu_percent: NonNegativeFloat | None = None
+    ram_used_bytes: NonNegativeFloat | None = None
+    ram_total_bytes: NonNegativeFloat | None = None
+    process_rss_bytes: NonNegativeFloat | None = None
+    # PyTorch's CUDA caching allocator, for the script's process.
+    cuda_allocated_bytes: NonNegativeFloat | None = None
+    cuda_reserved_bytes: NonNegativeFloat | None = None
+    device: Annotated[str, Field(max_length=64)] | None = None
+    gpus: Annotated[list[GpuStats], Field(max_length=MAX_GPUS)] = Field(
+        default_factory=list
+    )
+
+
 CommandKind = Literal["pause", "resume", "stop", "checkpoint", "set_lr"]
 CommandStatus = Literal["pending", "applied", "rejected", "expired"]
 
@@ -97,6 +135,8 @@ AlertKind = Literal[
     "loss_spike",
     "loss_plateau",
     "overfitting",
+    "gpu_underused",
+    "gpu_memory_high",
     "alerts_suppressed",
 ]
 
@@ -141,6 +181,8 @@ class TrainingStep(_EventBase):
     ] = Field(default_factory=dict)
     # External runs only: statistics measured by the script (ADR 0008).
     health: StepHealth | None = None
+    # External runs only: resource use and timing (CPU, RAM, GPU, ETA).
+    system: StepSystem | None = None
 
 
 class TrainingCompleted(_EventBase):

@@ -33,10 +33,12 @@ export function runImported(
   modelId: string,
   inputs: Record<string, RunInput>,
   signal?: AbortSignal,
+  /** Operators whose outputs to return; needed above the automatic limit (200 operators). */
+  capture?: string[],
 ): Promise<RunResponse> {
   return request(`/models/${encodeURIComponent(modelId)}/run`, RunResponseSchema, {
     method: 'POST',
-    body: { inputs },
+    body: capture && capture.length > 0 ? { inputs, capture } : { inputs },
     signal,
     // The first run may also start the worker and load the model.
     timeoutMs: 60_000,

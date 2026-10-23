@@ -14,6 +14,8 @@ export const UNIT_RADIUS = 11
 const OPAQUE_LAYER_HEIGHT = 80
 const COLUMN_STACK_GAP = 60
 const LAYER_PADDING = 18
+/** Space between wrapped rows of a long operator graph. */
+const ROW_GAP = 90
 
 export type LayerRole = 'input' | 'hidden' | 'output'
 
@@ -71,7 +73,63 @@ export function columnsOf(graph: ModelGraph): Map<string, number> {
       if (remaining === 0) queue.push(next)
     }
   }
+  // Operators not fed by a graph input (constants, shape arithmetic on
+  // weights) would all land in column 0, often far from where they are used;
+  // put each one just before its first consumer instead.
+  const inputs = graph.nodes.filter((n) => n.op_type === 'Input').map((n) => n.id)
+  if (inputs.length > 0) {
+    const fed = new Set(inputs)
+    const stack = [...inputs]
+    while (stack.length > 0) {
+      for (const next of outgoing.get(stack.pop() as string) ?? []) {
+        if (!fed.has(next)) {
+          fed.add(next)
+          stack.push(next)
+        }
+      }
+    }
+    const loose = graph.nodes.filter((n) => !fed.has(n.id) && (outgoing.get(n.id)?.length ?? 0) > 0)
+    // Chains of loose operators settle from their far end, one step per pass.
+    for (let pass = 0, changed = true; changed && pass < graph.nodes.length; pass++) {
+      changed = false
+      for (const node of loose) {
+        const consumers = (outgoing.get(node.id) ?? []).map((id) => depth.get(id) ?? 0)
+        const wanted = Math.max(0, Math.min(...consumers) - 1)
+        if (wanted > (depth.get(node.id) ?? 0)) {
+          depth.set(node.id, wanted)
+          changed = true
+        }
+      }
+    }
+  }
   return depth
+}
+
+/** Operator chains longer than this many columns are wrapped into rows. */
+export const WRAP_COLUMNS = 32
+
+export interface Placement {
+  /** Position along its row (0 = row start, left to right). */
+  slot: number
+  row: number
+}
+
+/**
+ * Deep operator graphs (a ResNet-50 is ~120 columns, a ViT-B/16 ~1,000) as
+ * one row are unreadable when fitted to a screen. Wrap the columns into a
+ * "snake": left to right, then right to left on the next row, so that
+ * consecutive operators always stay next to each other. `aspect` is the
+ * width / height of one column slot relative to one row; the row length is
+ * chosen so the whole graph comes out roughly 16:9.
+ */
+export function wrapColumns(columnCount: number, aspect: number): (column: number) => Placement {
+  if (columnCount <= WRAP_COLUMNS) return (column) => ({ slot: column, row: 0 })
+  const perRow = Math.max(WRAP_COLUMNS / 2, Math.ceil(Math.sqrt((columnCount * 16) / (9 * aspect))))
+  return (column) => {
+    const row = Math.floor(column / perRow)
+    const along = column % perRow
+    return { row, slot: row % 2 === 0 ? along : perRow - 1 - along }
+  }
 }
 
 export function computeLayout(graph: ModelGraph): GraphLayout {
@@ -85,6 +143,13 @@ export function computeLayout(graph: ModelGraph): GraphLayout {
     byColumn.set(column, [...(byColumn.get(column) ?? []), node.id])
   }
 
+  // Only operator graphs (imports) wrap; small dense networks keep one row.
+  const tallest = Math.max(1, ...[...byColumn.values()].map((ids) => ids.length))
+  const rowHeight = tallest * (OPAQUE_LAYER_HEIGHT + COLUMN_STACK_GAP) + ROW_GAP
+  const place = units
+    ? (column: number): Placement => ({ slot: column, row: 0 })
+    : wrapColumns(byColumn.size, OPERATOR_GAP / rowHeight)
+
   const layers: LayerLayout[] = []
   const byId = new Map<string, LayerLayout>()
   const bounds: Bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
@@ -95,8 +160,10 @@ export function computeLayout(graph: ModelGraph): GraphLayout {
     const count = units ? unitCount(node) : null
     const height = count === null ? OPAQUE_LAYER_HEIGHT : (count - 1) * UNIT_GAP
     // Stack nodes that share a column; a dense chain has one node per column.
-    const offset = (siblings.indexOf(node.id) - (siblings.length - 1) / 2) * (height + COLUMN_STACK_GAP)
-    const x = column * (units ? LAYER_GAP : OPERATOR_GAP)
+    const { slot, row } = place(column)
+    const offset =
+      row * rowHeight + (siblings.indexOf(node.id) - (siblings.length - 1) / 2) * (height + COLUMN_STACK_GAP)
+    const x = slot * (units ? LAYER_GAP : OPERATOR_GAP)
     const layer: LayerLayout = {
       nodeId: node.id,
       name: node.name,

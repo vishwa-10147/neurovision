@@ -10,3 +10,5 @@ class HealthResponse(BaseModel):
     service: str
     version: str
     environment: str
+    # Largest model file the import endpoint accepts (NEUROVISION_MAX_UPLOAD_BYTES).
+    max_upload_bytes: int

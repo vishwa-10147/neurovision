@@ -62,6 +62,101 @@
       "title": "ActivationHealth",
       "type": "object"
     },
+    "GpuStats": {
+      "additionalProperties": false,
+      "description": "One GPU as seen by the training script (NVML or torch.cuda).",
+      "properties": {
+        "index": {
+          "minimum": 0,
+          "title": "Index",
+          "type": "integer"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "util_percent": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Util Percent"
+        },
+        "mem_used_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mem Used Bytes"
+        },
+        "mem_total_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mem Total Bytes"
+        },
+        "temperature_c": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Temperature C"
+        },
+        "power_w": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Power W"
+        }
+      },
+      "required": [
+        "index"
+      ],
+      "title": "GpuStats",
+      "type": "object"
+    },
     "ParameterHealth": {
       "additionalProperties": false,
       "description": "One module that owns parameters, measured right after an optimizer step.",
@@ -136,6 +231,8 @@
             "loss_spike",
             "loss_plateau",
             "overfitting",
+            "gpu_underused",
+            "gpu_memory_high",
             "alerts_suppressed"
           ],
           "title": "Kind",
@@ -430,6 +527,179 @@
       "title": "StepHealth",
       "type": "object"
     },
+    "StepSystem": {
+      "additionalProperties": false,
+      "description": "Resource use and timing measured by the script for one step.",
+      "properties": {
+        "elapsed_s": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Elapsed S"
+        },
+        "step_time_s": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Time S"
+        },
+        "eta_s": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Eta S"
+        },
+        "samples_per_s": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Samples Per S"
+        },
+        "cpu_percent": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cpu Percent"
+        },
+        "process_cpu_percent": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Process Cpu Percent"
+        },
+        "ram_used_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ram Used Bytes"
+        },
+        "ram_total_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ram Total Bytes"
+        },
+        "process_rss_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Process Rss Bytes"
+        },
+        "cuda_allocated_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cuda Allocated Bytes"
+        },
+        "cuda_reserved_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cuda Reserved Bytes"
+        },
+        "device": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Device"
+        },
+        "gpus": {
+          "items": {
+            "$ref": "#/$defs/GpuStats"
+          },
+          "maxItems": 8,
+          "title": "Gpus",
+          "type": "array"
+        }
+      },
+      "title": "StepSystem",
+      "type": "object"
+    },
     "TrainingCancelled": {
       "additionalProperties": false,
       "properties": {
@@ -645,6 +915,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/StepHealth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "system": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StepSystem"
             },
             {
               "type": "null"

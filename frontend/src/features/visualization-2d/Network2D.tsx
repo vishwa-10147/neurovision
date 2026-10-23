@@ -257,6 +257,28 @@ function connectionFocus(edge: GraphEdge, selection: Selection) {
   return Object.assign(test, { any })
 }
 
+/**
+ * A curved link between two blocks. Wrapped operator graphs run right to
+ * left on every other row, and turn from one row to the next in place.
+ */
+function linkPath(source: LayerLayout, target: LayerLayout): string {
+  const half = UNIT_RADIUS + 12
+  const sy = (source.top + source.bottom) / 2
+  const ty = (target.top + target.bottom) / 2
+  if (Math.abs(target.x - source.x) < half && target.top > source.bottom) {
+    // A row turn: straight down from one block to the next.
+    const y1 = source.bottom
+    const y2 = target.top - 24 // Leave the target's label visible.
+    const bend = (y2 - y1) / 2
+    return `M ${source.x} ${y1} C ${source.x} ${y1 + bend}, ${target.x} ${y2 - bend}, ${target.x} ${y2}`
+  }
+  const direction = target.x >= source.x ? 1 : -1
+  const x1 = source.x + direction * half
+  const x2 = target.x - direction * half
+  const bend = direction * Math.max(40, Math.abs(x2 - x1) / 2)
+  return `M ${x1} ${sy} C ${x1 + bend} ${sy}, ${x2 - bend} ${ty}, ${x2} ${ty}`
+}
+
 /** One curved link between two blocks (operators or layers without units). */
 function EdgeLink({
   edge,
@@ -272,13 +294,7 @@ function EdgeLink({
   const source = layout.byId.get(edge.source)
   const target = layout.byId.get(edge.target)
   if (!source || !target) return null
-  const half = UNIT_RADIUS + 12
-  const x1 = source.x + half
-  const y1 = (source.top + source.bottom) / 2
-  const x2 = target.x - half
-  const y2 = (target.top + target.bottom) / 2
-  const bend = Math.max(40, (x2 - x1) / 2)
-  const d = `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`
+  const d = linkPath(source, target)
   const selected = selection?.kind === 'connection' && selection.edgeId === edge.id
   const related =
     (selection?.kind === 'layer' || selection?.kind === 'unit') &&

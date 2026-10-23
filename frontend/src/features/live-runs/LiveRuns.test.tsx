@@ -159,4 +159,43 @@ describe('Live runs', () => {
       timeout: 4000,
     })
   })
+
+  it('shows timing, ETA and GPU use measured by the script', async () => {
+    await watchSpiral()
+    const system = {
+      elapsed_s: 125,
+      eta_s: 185,
+      step_time_s: 0.25,
+      samples_per_s: 2048,
+      cpu_percent: 31,
+      ram_used_bytes: 12 * 2 ** 30,
+      ram_total_bytes: 32 * 2 ** 30,
+      device: 'cuda:0',
+      gpus: [
+        {
+          index: 0,
+          name: 'RTX 4070',
+          util_percent: 96,
+          mem_used_bytes: 5.5 * 2 ** 30,
+          mem_total_bytes: 8 * 2 ** 30,
+          temperature_c: 71,
+          power_w: 88.4,
+        },
+      ],
+    }
+    act(() => {
+      const socket = FakeSocket.latest()
+      socket.emit(started('run_a'))
+      socket.emit(stepEvent('run_a', 1, { system }))
+    })
+    const panel = await screen.findByRole('region', { name: 'System and speed' })
+    expect(await within(panel).findByText('3 min 05 s')).toBeInTheDocument()
+    expect(within(panel).getByText('2,048')).toBeInTheDocument()
+    expect(within(panel).getByText('12.0 GiB of 32.0 GiB')).toBeInTheDocument()
+    const gpu = within(panel).getByLabelText('GPU 0')
+    expect(within(gpu).getByText('96%')).toBeInTheDocument()
+    expect(within(gpu).getByText('5.5 GiB of 8.0 GiB')).toBeInTheDocument()
+    expect(within(gpu).getByText('88 W')).toBeInTheDocument()
+    expect(screen.getByText(/2 min 05 s elapsed · about 3 min 05 s left/)).toBeInTheDocument()
+  })
 })

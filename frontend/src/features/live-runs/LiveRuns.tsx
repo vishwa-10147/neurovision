@@ -10,6 +10,8 @@ import { ActivationStrips } from '../training-lab/TrainingResults'
 import { useEventStream } from '../training-lab/useTrainingStream'
 import { RunControls } from './RunControls'
 import { LayerHealth, RunAlerts } from './RunHealth'
+import { RunSystem } from './RunSystem'
+import { formatDuration, systemRow } from './system'
 
 const RunMetricCharts = lazy(() => import('../training-lab/MetricCharts').then((m) => ({ default: m.RunMetricCharts })))
 
@@ -26,6 +28,8 @@ export function LiveRuns() {
   const health = useLiveRunStore((s) => s.health)
   const healthPoints = useLiveRunStore((s) => s.healthPoints)
   const alerts = useLiveRunStore((s) => s.alerts)
+  const system = useLiveRunStore((s) => s.system)
+  const systemPoints = useLiveRunStore((s) => s.systemPoints)
   const stream = useLiveRunStore((s) => s.stream)
   const watch = useLiveRunStore((s) => s.watch)
   const applyEvents = useLiveRunStore((s) => s.applyEvents)
@@ -74,7 +78,12 @@ export function LiveRuns() {
           {run ? (
             <>
               <div className="card">
-                <RunProgress run={run} points={points} />
+                <RunProgress
+                  run={run}
+                  points={points}
+                  eta={run.status === 'running' ? (system?.stats.eta_s ?? null) : null}
+                  elapsed={system?.stats.elapsed_s ?? null}
+                />
                 <RunControls run={run} />
                 {run.status === 'cancelled' && (
                   <p className="muted">The script stopped because it was asked to from NeuroVision.</p>
@@ -90,6 +99,16 @@ export function LiveRuns() {
                 >
                   <Suspense fallback={<LoadingState label="Loading charts…" />}>
                     <RunMetricCharts points={points} />
+                  </Suspense>
+                </ErrorBoundary>
+              )}
+              <RunSystem system={system} />
+              {systemPoints.length > 1 && (
+                <ErrorBoundary
+                  fallback={(_, reset) => <ErrorState error={new Error('The charts could not be shown.')} onRetry={reset} />}
+                >
+                  <Suspense fallback={<LoadingState label="Loading charts…" />}>
+                    <RunMetricCharts points={systemPoints.map(systemRow)} />
                   </Suspense>
                 </ErrorBoundary>
               )}
@@ -158,7 +177,17 @@ function useRunList() {
   return { runs, error, refresh }
 }
 
-function RunProgress({ run, points }: { run: WatchedRun; points: RunPoint[] }) {
+function RunProgress({
+  run,
+  points,
+  eta,
+  elapsed,
+}: {
+  run: WatchedRun
+  points: RunPoint[]
+  eta: number | null
+  elapsed: number | null
+}) {
   const latest = points[points.length - 1]
   const epoch = latest?.epoch ?? 0
   const percent = Math.min(100, Math.round((epoch / run.totalEpochs) * 100))
@@ -181,6 +210,8 @@ function RunProgress({ run, points }: { run: WatchedRun; points: RunPoint[] }) {
       <p className="muted">
         Epoch {epoch} of {run.totalEpochs}
         {latest && ` · step ${latest.step.toLocaleString()}`}
+        {elapsed !== null && ` · ${formatDuration(elapsed)} elapsed`}
+        {eta !== null && ` · about ${formatDuration(eta)} left`}
       </p>
       {latest && Object.keys(latest.metrics).length > 0 && (
         <dl className="metric-tiles" aria-label="Latest metrics">

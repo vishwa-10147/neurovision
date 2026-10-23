@@ -109,11 +109,11 @@ export const InitializerRefSchema = z.object({
 export type InitializerRef = z.infer<typeof InitializerRefSchema>
 
 /** Client-side checks before uploading; the server repeats them. */
-export function checkModelFile(file: File): string | null {
+export function checkModelFile(file: File, limit: number = MAX_UPLOAD_BYTES): string | null {
   if (!file.name.toLowerCase().endsWith('.onnx')) return 'Choose an .onnx file. Other formats are not supported yet.'
   if (file.size === 0) return 'The file is empty.'
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return `The file is ${(file.size / 1024 / 1024).toFixed(1)} MB; the limit is ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`
+  if (file.size > limit) {
+    return `The file is ${(file.size / 1024 / 1024).toFixed(1)} MB; the limit is ${Math.round(limit / 1024 / 1024)} MB.`
   }
   return null
 }

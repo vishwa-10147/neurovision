@@ -9,7 +9,8 @@ describe('viewer targets', () => {
     expect(layoutFor([1, 4, 7, 7], attention)).toEqual(['batch', 'heads', 'query', 'key'])
     // A layout of the wrong rank is ignored rather than mislabelling dimensions.
     expect(layoutFor([4, 7, 7], attention)).toEqual(['batch', 'rows', 'columns'])
-    expect(layoutFor([2, 3, 4, 5, 6])).toEqual(['dim 0', 'dim 1', 'dim 2', 'rows', 'columns'])
+    expect(layoutFor([2, 3, 4, 5, 6])).toEqual(['batch', 'channels', 'frames', 'height', 'width'])
+    expect(layoutFor([2, 3, 4, 5, 6, 7])).toEqual(['dim 0', 'dim 1', 'dim 2', 'dim 3', 'rows', 'columns'])
   })
 
   it('names one item along an axis', () => {

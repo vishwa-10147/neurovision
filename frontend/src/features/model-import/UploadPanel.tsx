@@ -1,5 +1,6 @@
 import { FileUp, Sparkles } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
+import { fetchHealth } from '../../api/health'
 import { importSample, listSamples, uploadOnnx } from '../../api/imports'
 import { ErrorState, LoadingState } from '../../components/states/StateViews'
 import { checkModelFile, MAX_UPLOAD_BYTES, type ImportResponse, type SampleModel } from '../../types/imports'
@@ -10,12 +11,18 @@ export function UploadPanel({ onImported }: { onImported: (result: ImportRespons
   const [status, setStatus] = useState<Status>({ state: 'idle' })
   const [dragging, setDragging] = useState(false)
   const [samples, setSamples] = useState<SampleModel[] | null>(null)
+  // The server's limit when it reports one (NEUROVISION_MAX_UPLOAD_BYTES).
+  const [limit, setLimit] = useState(MAX_UPLOAD_BYTES)
   const inputRef = useRef<HTMLInputElement>(null)
   const id = useId()
 
   useEffect(() => {
     const controller = new AbortController()
     listSamples(controller.signal).then(setSamples, () => setSamples([]))
+    fetchHealth(controller.signal).then(
+      (health) => setLimit(health.max_upload_bytes ?? MAX_UPLOAD_BYTES),
+      () => undefined,
+    )
     return () => controller.abort()
   }, [])
 
@@ -31,7 +38,7 @@ export function UploadPanel({ onImported }: { onImported: (result: ImportRespons
 
   const importFile = (file: File | undefined) => {
     if (!file) return
-    const problem = checkModelFile(file)
+    const problem = checkModelFile(file, limit)
     if (problem) {
       setStatus({ state: 'error', error: new Error(problem) })
       return
@@ -76,7 +83,7 @@ export function UploadPanel({ onImported }: { onImported: (result: ImportRespons
           }}
         />
         <p className="muted">
-          Up to {MAX_UPLOAD_BYTES / 1024 / 1024} MB. The file is parsed for inspection only; it is not
+          Up to {Math.round(limit / 1024 / 1024)} MB. The file is parsed for inspection only; it is not
           run, and external data files it references are not read.
         </p>
       </div>

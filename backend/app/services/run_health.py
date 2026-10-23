@@ -13,7 +13,7 @@ import statistics
 from collections import deque
 from dataclasses import dataclass
 
-from app.schemas.events import AlertKind, StepHealth
+from app.schemas.events import AlertKind, StepHealth, StepSystem
 
 # Gradient norm far above its recent median.
 EXPLODING_FACTOR = 10.0
@@ -34,6 +34,10 @@ SPIKE_FACTOR = 3.0
 PLATEAU_IMPROVEMENT = 0.01
 PLATEAU_STEPS = 20
 OVERFIT_STEPS = 5
+# A GPU this busy or less, for this many logged steps, is mostly waiting.
+GPU_UNDERUSED_PERCENT = 20.0
+GPU_UNDERUSED_STEPS = 5
+GPU_MEMORY_HIGH = 0.95
 
 LOSS_NAMES = ("loss", "train_loss", "training_loss")
 VAL_LOSS_NAMES = ("val_loss", "valid_loss", "validation_loss")
@@ -72,7 +76,10 @@ class HealthRules:
         self._pairs: deque[tuple[float, float]] = deque(maxlen=OVERFIT_STEPS + 1)
 
     def observe(
-        self, metrics: dict[str, float], health: StepHealth | None
+        self,
+        metrics: dict[str, float],
+        health: StepHealth | None,
+        system: StepSystem | None = None,
     ) -> list[Finding]:
         found: list[Finding] = []
         if health is not None:
@@ -80,6 +87,8 @@ class HealthRules:
             self._parameters(health, found)
             self._activations(health, found)
         self._loss(metrics, health, found)
+        if system is not None:
+            self._system(system, found)
         return found
 
     # Rules ---------------------------------------------------------------
@@ -95,7 +104,9 @@ class HealthRules:
                 f"{health.nonfinite_grads:,} gradient values are NaN or infinite.",
                 "Lower the learning rate, clip gradients "
                 "(torch.nn.utils.clip_grad_norm_), or check the inputs and loss "
-                "for invalid values (log of 0, division by 0).",
+                "for invalid values (log of 0, division by 0). With mixed "
+                "precision, GradScaler skips overflowed steps on purpose: "
+                "collect health only on steps it applied.",
             ),
         )
         norm = health.grad_norm
@@ -292,6 +303,45 @@ class HealthRules:
             ),
         )
 
+    def _system(self, system: StepSystem, found: list[Finding]) -> None:
+        for gpu in system.gpus:
+            label = f"GPU {gpu.index}" + (f" ({gpu.name})" if gpu.name else "")
+            if gpu.util_percent is not None:
+                self._persistent(
+                    found,
+                    ("gpu_underused", str(gpu.index)),
+                    gpu.util_percent <= GPU_UNDERUSED_PERCENT,
+                    Finding(
+                        "gpu_underused",
+                        "info",
+                        f"{label} has been only {gpu.util_percent:.0f}% busy for "
+                        f"{GPU_UNDERUSED_STEPS} logged steps.",
+                        "The GPU is mostly waiting: the data loader or CPU "
+                        "preprocessing is likely the bottleneck (try more DataLoader "
+                        "workers, pin_memory=True, or a larger batch), or the model "
+                        "is running on the CPU.",
+                        label,
+                    ),
+                    steps=GPU_UNDERUSED_STEPS,
+                )
+            if gpu.mem_used_bytes is not None and gpu.mem_total_bytes:
+                share = gpu.mem_used_bytes / gpu.mem_total_bytes
+                self._edge(
+                    found,
+                    ("gpu_memory_high", str(gpu.index)),
+                    share >= GPU_MEMORY_HIGH,
+                    Finding(
+                        "gpu_memory_high",
+                        "warning",
+                        f"{label} memory is {share:.0%} full "
+                        f"({gpu.mem_used_bytes / 2**30:.1f} of "
+                        f"{gpu.mem_total_bytes / 2**30:.1f} GiB).",
+                        "An out-of-memory error is close: lower the batch size, use "
+                        "mixed precision (torch.autocast), or gradient checkpointing.",
+                        label,
+                    ),
+                )
+
     # Edge detection ------------------------------------------------------
 
     def _edge(
@@ -314,8 +364,9 @@ class HealthRules:
         key: tuple[str, str | None],
         condition: bool,
         finding: Finding,
+        steps: int = PERSIST_STEPS,
     ) -> None:
-        """Like `_edge`, but only after PERSIST_STEPS consecutive steps."""
+        """Like `_edge`, but only after `steps` consecutive steps."""
         streak = self._streaks.get(key, 0) + 1 if condition else 0
         self._streaks[key] = streak
-        self._edge(found, key, streak >= PERSIST_STEPS, finding)
+        self._edge(found, key, streak >= steps, finding)

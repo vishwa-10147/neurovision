@@ -9,8 +9,12 @@ are served at `/docs` while the backend is running.
 `200 OK`. The body follows `shared/schemas/health.schema.json`:
 
 ``` json
-{"status": "ok", "service": "neurovision-backend", "version": "0.1.0", "environment": "development"}
+{"status": "ok", "service": "neurovision-backend", "version": "0.1.0", "environment": "development",
+ "max_upload_bytes": 67108864}
 ```
+
+`max_upload_bytes` is `NEUROVISION_MAX_UPLOAD_BYTES`; the Model Explorer
+checks files against it before uploading.
 
 ## `POST /models/educational`
 
@@ -230,6 +234,22 @@ ADR 0008), all finite and non-negative unless noted:
 | `nonfinite_metrics` | names of metrics that were NaN/∞ (≤ 16) |
 | `parameters` | ≤ 32 groups: `{grad_norm, weight_norm, update_ratio, parameters}` |
 | `activations` | ≤ 32 layers: `{kind, mean, std, dead_fraction, saturated_fraction}`; `kind` is `relu`, `tanh`, `sigmoid` or `other`; fractions in [0, 1] |
+
+A step may also carry optional **`system`** statistics (`StepSystem`),
+measured by the script; all numbers are finite and non-negative:
+
+| Field | Meaning |
+|-------|---------|
+| `elapsed_s`, `step_time_s`, `eta_s` | seconds since the run started, since the previous logged step, and estimated to go |
+| `samples_per_s` | training examples per second since the previous logged step |
+| `cpu_percent` (0–100), `process_cpu_percent` | machine CPU load; the script's own (can exceed 100 on several cores) |
+| `ram_used_bytes`, `ram_total_bytes`, `process_rss_bytes` | machine RAM; the script's resident memory |
+| `cuda_allocated_bytes`, `cuda_reserved_bytes`, `device` | PyTorch's CUDA allocator for the script; e.g. `cuda:0` |
+| `gpus` | ≤ 8: `{index, name, util_percent (0–100), mem_used_bytes, mem_total_bytes, temperature_c, power_w}` |
+
+Two rules read them: `gpu_underused` (info: a GPU ≤ 20 % busy for 5
+logged steps in a row) and `gpu_memory_high` (warning: ≥ 95 % of a
+GPU's memory in use).
 
 The server's health rules turn these (and the `loss` / `val_loss`
 metrics) into `run.alert` events; the rules and thresholds are listed in

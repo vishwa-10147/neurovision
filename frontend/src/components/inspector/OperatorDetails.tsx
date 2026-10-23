@@ -103,6 +103,22 @@ export function OperatorDetails({ node }: { node: GraphNode }) {
           ))}
         </div>
       )}
+      {measured.length === 0 && !io && explorer?.run && explorer.captureAndRun && (
+        <div className="initializers" aria-label="Output in the last run">
+          <h4>Output in the last run</h4>
+          <p className="muted">
+            Not captured: in models this large only the operators you ask for are kept.
+          </p>
+          <button
+            type="button"
+            className="link-button"
+            disabled={explorer.capturing}
+            onClick={() => void explorer.captureAndRun?.(node.id)}
+          >
+            {explorer.capturing ? 'Running…' : 'Capture this operator and run again'}
+          </button>
+        </div>
+      )}
       {initializers.length > 0 && (
         <div className="initializers">
           <h4>Weights and constants</h4>

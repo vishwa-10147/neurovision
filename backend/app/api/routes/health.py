@@ -16,4 +16,5 @@ def health(settings: Annotated[Settings, Depends(get_settings)]) -> HealthRespon
         service="neurovision-backend",
         version=__version__,
         environment=settings.environment,
+        max_upload_bytes=settings.max_upload_bytes,
     )

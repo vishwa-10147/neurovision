@@ -552,3 +552,37 @@ class TestHealth:
         ]
         # The global numbers stay for trend charts.
         assert all(s["health"]["grad_norm"] == 1.0 for s in steps)
+
+
+class TestSystem:
+    def test_system_stats_are_streamed_and_alert(self, client: TestClient) -> None:
+        run_id, token = create(client)
+        system = {
+            "elapsed_s": 12.5,
+            "eta_s": 30.0,
+            "cpu_percent": 40.0,
+            "device": "cuda:0",
+            "gpus": [
+                {
+                    "index": 0,
+                    "util_percent": 97.0,
+                    "mem_used_bytes": 7.9e9,
+                    "mem_total_bytes": 8e9,
+                },
+            ],
+        }
+        assert log(client, run_id, token, [step(1, system=system)]).status_code == 202
+        finish(client, run_id, token)
+        events = stream(client, run_id)
+        (logged,) = of_type(events, "training.step")
+        assert logged["system"]["eta_s"] == 30.0
+        assert logged["system"]["gpus"][0]["util_percent"] == 97.0
+        (alert,) = of_type(events, "run.alert")
+        assert alert["alert"]["kind"] == "gpu_memory_high"
+
+    def test_rejects_out_of_range_system(self, client: TestClient) -> None:
+        run_id, token = create(client)
+        bad = step(1, system={"cpu_percent": 140.0})
+        assert log(client, run_id, token, [bad]).status_code == 422
+        many = step(1, system={"gpus": [{"index": i} for i in range(9)]})
+        assert log(client, run_id, token, [many]).status_code == 422

@@ -42,6 +42,7 @@ import json
 import logging
 import math
 import os
+import sys
 import threading
 import time
 import urllib.error
@@ -50,7 +51,7 @@ from collections import OrderedDict, deque
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
-__all__ = ["ActivationProbe", "HealthMonitor", "Run", "start_run"]
+__all__ = ["ActivationProbe", "HealthMonitor", "Run", "SystemMonitor", "start_run"]
 
 # Limits enforced by the server (backend/app/schemas/events.py, runs.py).
 MAX_METRICS = 16
@@ -61,6 +62,7 @@ MAX_HEALTH_LAYERS = 32
 MAX_NAME_LENGTH = 256
 MAX_MESSAGE_LENGTH = 300
 MAX_LEARNING_RATE = 10.0
+MAX_GPUS = 8
 
 # 127.0.0.1, not localhost: on Windows, "localhost" tries IPv6 first and
 # costs about 2 s per request against a server listening on IPv4 only.
@@ -112,6 +114,7 @@ def start_run(
     control: bool = False,
     optimizer: Any = None,
     on_checkpoint: Callable[[], Any] | None = None,
+    track_system: bool = True,
     flush_interval: float = 0.5,
     control_interval: float = 1.0,
     max_queue: int = 512,
@@ -130,6 +133,10 @@ def start_run(
     adds saving a checkpoint. Commands take effect when you call run.poll().
     Anyone who can reach the backend can send them, so keep it on localhost
     or a trusted network.
+
+    `track_system` (on by default) sends timing (elapsed, step time, ETA,
+    throughput) with every step, plus CPU, RAM and GPU use when psutil and
+    nvidia-ml-py are installed (both optional); see SystemMonitor.
     """
     base = (url or os.environ.get("NEUROVISION_URL") or DEFAULT_URL).rstrip("/")
     send = transport or urllib_transport(timeout)
@@ -174,6 +181,8 @@ def start_run(
         optimizer=optimizer,
         on_checkpoint=on_checkpoint,
         control_interval=control_interval,
+        total_epochs=total_epochs,
+        system=SystemMonitor() if track_system else None,
     )
     logger.info("NeuroVision: logging run %s to %s", run.run_id, base)
     return run
@@ -201,6 +210,8 @@ class Run:
         optimizer: Any = None,
         on_checkpoint: Callable[[], Any] | None = None,
         control_interval: float = 1.0,
+        total_epochs: int | None = None,
+        system: SystemMonitor | None = None,
     ) -> None:
         self.name = name
         self.run_id = run_id
@@ -234,6 +245,12 @@ class Run:
         self.paused = False
         self.stop_requested = False
         self.commands_applied = 0
+        # Timing and resource use for each logged step.
+        self.total_epochs = total_epochs
+        self._system = system
+        self._started = time.monotonic()
+        self._last_log: float | None = None
+        self._progress: deque[tuple[float, float]] = deque(maxlen=20)
         self._thread: threading.Thread | None = None
         if self._enabled:
             self._thread = threading.Thread(
@@ -264,8 +281,16 @@ class Run:
         step: int | None = None,
         activations: Mapping[str, Any] | None = None,
         health: Mapping[str, Any] | None = None,
+        samples: int | None = None,
+        progress: float | None = None,
     ) -> None:
         """Queue one step. `step` defaults to one more than the last step.
+
+        `samples` (optional) is how many training examples this step
+        covers since the previous log() call, for a throughput figure.
+        `progress` (optional) is the fractional number of epochs done, e.g.
+        epoch - 1 + batch / batches, so the ETA is right when you log several
+        times per epoch; without it the ETA follows `epoch`.
 
         Metric values and activations may be floats, lists, NumPy arrays, or
         tensors (they are copied to the CPU here). Values that the server
@@ -278,6 +303,12 @@ class Run:
             return
         try:
             event = self._build(epoch, step, metrics, activations or {}, health)
+            if event is not None:
+                system = self._system_stats(
+                    epoch if progress is None else progress, samples
+                )
+                if system:
+                    event["system"] = system
         except Exception as error:
             self._warn_once("log", f"skipped a step it could not read ({error}).")
             return
@@ -435,6 +466,31 @@ class Run:
         if cleaned is not None:
             event["health"] = cleaned
         return event
+
+    def _system_stats(self, epoch: float, samples: int | None) -> dict[str, Any]:
+        """Timing (always) and resource use (when available) for this step."""
+        if self._system is None:
+            return {}
+        now = time.monotonic()
+        stats: dict[str, Any] = {"elapsed_s": now - self._started}
+        if self._last_log is not None:
+            step_time = now - self._last_log
+            stats["step_time_s"] = step_time
+            if samples and step_time > 0:
+                stats["samples_per_s"] = samples / step_time
+        self._last_log = now
+        # ETA from the recent rate of epochs per second.
+        self._progress.append((now, float(epoch)))
+        if self.total_epochs and len(self._progress) >= 2:
+            (t0, e0), (t1, e1) = self._progress[0], self._progress[-1]
+            if e1 > e0 and t1 > t0:
+                rate = (e1 - e0) / (t1 - t0)
+                stats["eta_s"] = max(0.0, (self.total_epochs - e1) / rate)
+        try:
+            stats.update(self._system.sample())
+        except Exception as error:
+            self._warn_once("system", f"could not read system stats ({error}).")
+        return _clean_system(stats)
 
     # Background thread --------------------------------------------------
 
@@ -675,6 +731,141 @@ def _flatten(value: Any) -> Iterable[Any]:
             yield from _flatten(item)
     else:
         yield value
+
+
+# System statistics ----------------------------------------------------------
+
+
+class SystemMonitor:
+    """CPU, RAM and GPU use of the machine and this process.
+
+    Uses psutil for CPU/RAM and NVML (pip install nvidia-ml-py) for GPU
+    utilization, memory, temperature and power, when they are installed;
+    without them only timing is reported. If PyTorch is already imported and
+    CUDA is initialized, its allocator's memory use is reported too.
+    """
+
+    def __init__(self) -> None:
+        try:
+            import psutil
+
+            self._psutil: Any = psutil
+            self._process = psutil.Process()
+            psutil.cpu_percent(None)  # Start the measuring interval.
+            self._process.cpu_percent(None)
+        except Exception:
+            self._psutil = None
+        self._nvml: Any = None
+        self._handles: list[Any] = []
+        try:
+            import pynvml
+
+            pynvml.nvmlInit()
+            count = min(pynvml.nvmlDeviceGetCount(), MAX_GPUS)
+            self._handles = [pynvml.nvmlDeviceGetHandleByIndex(i) for i in range(count)]
+            self._nvml = pynvml
+        except Exception:
+            self._nvml = None
+
+    @property
+    def has_gpu_stats(self) -> bool:
+        return bool(self._handles)
+
+    def sample(self) -> dict[str, Any]:
+        stats: dict[str, Any] = {}
+        if self._psutil is not None:
+            memory = self._psutil.virtual_memory()
+            stats.update(
+                cpu_percent=self._psutil.cpu_percent(None),
+                process_cpu_percent=self._process.cpu_percent(None),
+                ram_used_bytes=float(memory.total - memory.available),
+                ram_total_bytes=float(memory.total),
+                process_rss_bytes=float(self._process.memory_info().rss),
+            )
+        gpus = [self._gpu(index, handle) for index, handle in enumerate(self._handles)]
+        if gpus:
+            stats["gpus"] = gpus
+        torch = sys.modules.get("torch")
+        if torch is not None:
+            try:
+                if torch.cuda.is_available() and torch.cuda.is_initialized():
+                    stats["cuda_allocated_bytes"] = float(torch.cuda.memory_allocated())
+                    stats["cuda_reserved_bytes"] = float(torch.cuda.memory_reserved())
+                    stats["device"] = f"cuda:{torch.cuda.current_device()}"
+            except Exception:
+                pass
+        return stats
+
+    def _gpu(self, index: int, handle: Any) -> dict[str, Any]:
+        nvml = self._nvml
+        gpu: dict[str, Any] = {"index": index}
+        try:
+            name = nvml.nvmlDeviceGetName(handle)
+            gpu["name"] = name.decode() if isinstance(name, bytes) else str(name)
+        except Exception:
+            pass
+        try:
+            gpu["util_percent"] = float(nvml.nvmlDeviceGetUtilizationRates(handle).gpu)
+        except Exception:
+            pass
+        try:
+            memory = nvml.nvmlDeviceGetMemoryInfo(handle)
+            gpu["mem_used_bytes"] = float(memory.used)
+            gpu["mem_total_bytes"] = float(memory.total)
+        except Exception:
+            pass
+        try:
+            gpu["temperature_c"] = float(nvml.nvmlDeviceGetTemperature(handle, 0))
+        except Exception:
+            pass
+        try:
+            gpu["power_w"] = nvml.nvmlDeviceGetPowerUsage(handle) / 1000.0
+        except Exception:
+            pass
+        return gpu
+
+
+_SYSTEM_NUMBERS = (
+    "elapsed_s",
+    "step_time_s",
+    "eta_s",
+    "samples_per_s",
+    "process_cpu_percent",
+    "ram_used_bytes",
+    "ram_total_bytes",
+    "process_rss_bytes",
+    "cuda_allocated_bytes",
+    "cuda_reserved_bytes",
+)
+
+
+def _clean_system(stats: Mapping[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key in _SYSTEM_NUMBERS:
+        number = _finite(stats.get(key))
+        if number is not None:
+            out[key] = number
+    cpu = _finite(stats.get("cpu_percent"), maximum=100.0)
+    if cpu is not None:
+        out["cpu_percent"] = cpu
+    if isinstance(stats.get("device"), str):
+        out["device"] = stats["device"][:64]
+    gpus = []
+    for gpu in list(stats.get("gpus") or [])[:MAX_GPUS]:
+        entry: dict[str, Any] = {"index": max(0, int(gpu.get("index", 0)))}
+        if isinstance(gpu.get("name"), str):
+            entry["name"] = gpu["name"][:MAX_MESSAGE_LENGTH]
+        util = _finite(gpu.get("util_percent"), maximum=100.0)
+        if util is not None:
+            entry["util_percent"] = util
+        for key in ("mem_used_bytes", "mem_total_bytes", "temperature_c", "power_w"):
+            number = _finite(gpu.get(key))
+            if number is not None:
+                entry[key] = number
+        gpus.append(entry)
+    if gpus:
+        out["gpus"] = gpus
+    return out
 
 
 # Health statistics ----------------------------------------------------------

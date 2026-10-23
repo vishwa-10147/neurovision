@@ -3,8 +3,13 @@ starts, quotes the measured numbers, and re-arms when the condition clears."""
 
 from typing import Any
 
-from app.schemas.events import StepHealth
-from app.services.run_health import PERSIST_STEPS, PLATEAU_STEPS, HealthRules
+from app.schemas.events import StepHealth, StepSystem
+from app.services.run_health import (
+    GPU_UNDERUSED_STEPS,
+    PERSIST_STEPS,
+    PLATEAU_STEPS,
+    HealthRules,
+)
 
 
 def health(**fields: Any) -> StepHealth:
@@ -155,3 +160,35 @@ class TestLoss:
             for i in range(8)
         ]
         assert all(f == [] for f in feed(rules, steps))
+
+
+def gpu(**fields: Any) -> StepSystem:
+    return StepSystem.model_validate({"gpus": [{"index": 0, "name": "RTX", **fields}]})
+
+
+class TestSystem:
+    def test_gpu_underused_needs_a_streak(self) -> None:
+        rules = HealthRules()
+        found = [
+            kinds(rules.observe({}, None, gpu(util_percent=5.0)))
+            for _ in range(GPU_UNDERUSED_STEPS + 2)
+        ]
+        assert found[GPU_UNDERUSED_STEPS - 1] == ["gpu_underused"]
+        assert sum(f == ["gpu_underused"] for f in found) == 1
+
+    def test_busy_gpu_breaks_the_streak(self) -> None:
+        rules = HealthRules()
+        utils = [5.0] * (GPU_UNDERUSED_STEPS - 1) + [90.0] + [5.0] * 2
+        found = [kinds(rules.observe({}, None, gpu(util_percent=u))) for u in utils]
+        assert all(f == [] for f in found)
+
+    def test_gpu_memory_high_quotes_the_numbers(self) -> None:
+        rules = HealthRules()
+        found = rules.observe(
+            {}, None, gpu(mem_used_bytes=7.9 * 2**30, mem_total_bytes=8 * 2**30)
+        )
+        assert kinds(found) == ["gpu_memory_high"]
+        assert "99%" in found[0].message and found[0].layer == "GPU 0 (RTX)"
+
+    def test_no_system_no_findings(self) -> None:
+        assert HealthRules().observe({}, None, StepSystem()) == []

@@ -81,6 +81,9 @@ function TensorMaps({
   const leadCount = Math.max(0, rank - (hasGrid ? 3 : 2))
   const [lead, setLead] = useState<number[]>(() => Array(leadCount).fill(0))
   const [item, setItem] = useState(0)
+  // Shared: maps are comparable. Each: every map uses its own range, so the
+  // shapes of weak channels show (most ReLU outputs are far below the max).
+  const [contrast, setContrast] = useState<'shared' | 'each'>('shared')
   const itemAxis = hasGrid ? layout[rank - 3] : null
   const rowName = layout[rank - 2]
   const colName = layout[rank - 1]
@@ -96,13 +99,16 @@ function TensorMaps({
 
   // Attention rows are probability distributions: a fixed 0–1 scale keeps
   // heads comparable. Other tensors share one symmetric scale across the grid.
-  const scaleFrom = (min: number | null, max: number | null): Scale =>
+  // With "each map on its own scale", a head runs from 0 to its own largest
+  // weight: over hundreds of keys most weights are tiny and a 0–1 scale is blank.
+  const scaleFrom = (min: number | null, max: number | null, own = false): Scale =>
     attention
-      ? { kind: 'sequential', min: 0, max: 1 }
+      ? { kind: 'sequential', min: 0, max: own && max ? max : 1 }
       : { kind: 'diverging', limit: Math.max(Math.abs(min ?? 0), Math.abs(max ?? 0)) }
+  const perMap = contrast === 'each'
   const gridScale = grid.state === 'ready' ? scaleFrom(grid.data.min, grid.data.max) : null
-  const detailScale =
-    gridScale ?? (detail.state === 'ready' ? scaleFrom(detail.data.min, detail.data.max) : null)
+  const ownScale = detail.state === 'ready' ? scaleFrom(detail.data.min, detail.data.max, perMap) : null
+  const detailScale = perMap ? ownScale : (gridScale ?? ownScale)
 
   return (
     <div className="tensor-maps">
@@ -112,7 +118,9 @@ function TensorMaps({
           ? '. Detected as attention by pattern (a softmax over a square [..., S, S] tensor), so each row is one query position’s weights over key positions.'
           : rank === 4
             ? '. Dimension roles assume the usual [batch, channels, height, width] order.'
-            : '.'}
+            : rank === 5
+              ? '. Dimension roles assume the video order [batch, channels, frames, height, width] (as in PyTorch Conv3d); the grid shows each frame of one channel.'
+              : '.'}
       </p>
 
       {leadCount > 0 && (
@@ -137,6 +145,15 @@ function TensorMaps({
         </div>
       )}
 
+      <div className="view-switch" role="group" aria-label="Contrast">
+        <button type="button" className="chip" aria-pressed={contrast === 'shared'} onClick={() => setContrast('shared')}>
+          One scale for all maps
+        </button>
+        <button type="button" className="chip" aria-pressed={contrast === 'each'} onClick={() => setContrast('each')}>
+          Each map on its own scale
+        </button>
+      </div>
+
       {hasGrid && itemAxis && (
         <div>
           <h3>
@@ -160,7 +177,7 @@ function TensorMaps({
                       >
                         <Heatmap
                           values={thumb.values}
-                          scale={gridScale}
+                          scale={perMap ? scaleFrom(thumb.min, thumb.max, true) : gridScale}
                           cellSize={Math.max(2, Math.floor(THUMB_PX / size))}
                           label={`${singular(itemAxis)} ${thumb.index} thumbnail`}
                         />
@@ -201,7 +218,7 @@ function TensorMaps({
               stride={detail.data.stride}
               interactive
             />
-            <MapLegend scale={detailScale} map={detail.data} attention={attention} />
+            <MapLegend scale={detailScale} map={detail.data} attention={attention} perMap={perMap} />
           </>
         )}
       </div>
@@ -209,14 +226,26 @@ function TensorMaps({
   )
 }
 
-function MapLegend({ scale, map, attention }: { scale: Scale; map: TensorMap; attention: boolean }) {
+function MapLegend({
+  scale,
+  map,
+  attention,
+  perMap,
+}: {
+  scale: Scale
+  map: TensorMap
+  attention: boolean
+  perMap: boolean
+}) {
   return (
     <div className="legend map-legend" aria-label="Map legend">
       <span className="legend-item">
         <span className={`activation-scale${scale.kind === 'sequential' ? ' activation-scale-positive' : ''}`} aria-hidden="true" />
         {scale.kind === 'sequential'
-          ? 'Weight from 0 (neutral) to 1 (blue), the same scale for every head'
-          : `Orange negative, blue positive; full color at ±${formatValue(scale.limit, 3)} (shared across all maps)`}
+          ? perMap
+            ? `Weight from 0 (neutral) to ${formatValue(scale.max, 3)} (blue), this head's largest weight`
+            : 'Weight from 0 (neutral) to 1 (blue), the same scale for every head'
+          : `Orange negative, blue positive; full color at ±${formatValue(scale.limit, 3)} ${perMap ? ' for this map (each map uses its own range)' : ' (shared across all maps)'}`}
       </span>
       <p className="legend-note">
         This map: min {map.min === null ? '—' : formatValue(map.min, 4)}, max{' '}

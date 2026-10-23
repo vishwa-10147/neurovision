@@ -29,6 +29,7 @@ Everything the UI shows as model behaviour comes from **actually computed values
 - [Repository layout](#repository-layout)
 - [Quick start (Windows PowerShell)](#quick-start-windows-powershell)
 - [Watch your own PyTorch training live](#watch-your-own-pytorch-training-live)
+- [Real vision models: benchmarks and views](#real-vision-models-benchmarks-and-views)
 - [Implemented API](#implemented-api)
 - [Quality checks](#quality-checks)
 - [Documentation](#documentation)
@@ -133,6 +134,7 @@ neurovision/
 ├── sdk/
 │   ├── neurovision_client.py # one-file client for streaming your own training
 │   └── examples/train_spiral.py
+├── bench/                    # Real-model benchmarks: vision_models.py, check_onnx.py, train_live.py, results/
 ├── shared/schemas/           # JSON Schemas for graph, events, errors, tensors (+ examples)
 ├── docs/                     # API reference, guides, design decisions (ADRs)
 ├── paper/                    # Technical paper (PDF + DOCX)
@@ -274,6 +276,25 @@ A complete example is in [`sdk/examples/train_spiral.py`](sdk/examples/train_spi
 
 > **Tip:** on Windows, use `127.0.0.1` rather than `localhost`. Otherwise each request can take about 2 s because Windows tries IPv6 first.
 
+### System use, speed and ETA
+
+Every logged step also carries elapsed time, step time, an ETA, throughput (`samples=`), CPU and RAM (with `psutil`), and per-GPU load, memory, temperature and power (with `nvidia-ml-py`), shown in a **System & speed** panel with charts. Two rules flag an idle GPU and nearly full GPU memory.
+
+## Real vision models: benchmarks and views
+
+[`docs/vision-benchmarks.md`](docs/vision-benchmarks.md) measures seven pretrained torchvision models on an RTX 4070 Laptop GPU, from MobileNetV3 to ViT-B/16 and the 3D video CNN R3D-18: speed, GPU/CPU load, memory, ONNX export accuracy, predictions on real photos, 2D/3D views, feature maps and attention, and live GPU fine-tuning with ETA and system telemetry.
+
+| Model | Params | GPU b1 | GPU throughput (fp16) | ONNX Runtime CPU b1 | Fine-tuned test acc. (digits) |
+|---|---:|---:|---:|---:|---:|
+| MobileNetV3-Large | 5.5 M | 6.1 ms | 3,531 /s | 1.8 ms | 98.6 %¹ |
+| ResNet-50 | 25.6 M | 6.5 ms | 869 /s | 12.0 ms | 99.4 % |
+| ConvNeXt-Tiny | 28.6 M | 4.5 ms | 752 /s | 34.7 ms | 99.4 % |
+| ViT-B/16 | 86.6 M | 9.6 ms | 401 /s | 108 ms | 99.7 % |
+
+¹ After raising its BatchNorm momentum; with torchvision's 0.01 it tested at 52.5 % (see the doc).
+
+![ViT-B/16 attention heads in the Model Explorer](docs/images/benchmarks/vit-b16-attention.png)
+
 ---
 
 ## Implemented API
@@ -346,6 +367,7 @@ npm run build
 | [`docs/schemas.md`](docs/schemas.md) | Graph, event, error and health contracts; keeping Pydantic, JSON Schema and Zod in sync |
 | [`docs/importing-onnx.md`](docs/importing-onnx.md) | Exporting from PyTorch and importing, inspecting and running ONNX models |
 | [`docs/live-runs.md`](docs/live-runs.md) | Streaming your own training with the SDK |
+| [`docs/vision-benchmarks.md`](docs/vision-benchmarks.md) | Seven real vision models: speed, load, accuracy, 2D/3D views, attention, GPU fine-tuning |
 | [`docs/decisions/`](docs/decisions/) | Architecture decision records (0001–0008) |
 | [`PLAN.md`](PLAN.md) | Milestones and acceptance criteria |
 | [`SKILLS.md`](SKILLS.md) | Engineering standards and skills checklist |
@@ -378,6 +400,7 @@ The project is built milestone by milestone, and each milestone leaves the repos
 | 6 | Run imported models; stream your own training (Live Runs) | ✅ |
 | 7 | CNN feature maps, attention heads, filter views | ✅ |
 | — | Training health alerts and two-way run controls ([ADR 0008](docs/decisions/0008-run-health-and-controls.md)) | ✅ |
+| — | System and GPU telemetry with ETA in Live Runs; heavy-model support in the Model Explorer (wrapped 2D/3D layouts, photo inputs, capture on request, per-map contrast, video tensors) and [benchmarks](docs/vision-benchmarks.md) | ✅ |
 | Next | Learning Mode, saved projects, deployment | planned |
 
 See [`PLAN.md`](PLAN.md) for the detailed tasks and acceptance criteria.

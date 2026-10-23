@@ -3,7 +3,7 @@ import onnxGraph from '../../../../shared/schemas/examples/onnx-import.graph.jso
 import { denseGraph } from '../../test/denseGraph'
 import { EXAMPLE_CONFIG } from '../../types/architecture'
 import { ModelGraphSchema } from '../../types/graph'
-import { computeLayout, LAYER_GAP, UNIT_GAP } from './layout'
+import { columnsOf, computeLayout, LAYER_GAP, UNIT_GAP, WRAP_COLUMNS, wrapColumns } from './layout'
 import { fitTransform, MAX_ZOOM, MIN_ZOOM, zoomAround } from './viewport'
 
 describe('computeLayout', () => {
@@ -69,5 +69,66 @@ describe('viewport math', () => {
     expect((100 - z.y) / z.k).toBeCloseTo((100 - t.y) / t.k)
     expect(zoomAround(t, 1000, 0, 0).k).toBe(MAX_ZOOM)
     expect(zoomAround(t, 0.0001, 0, 0).k).toBe(MIN_ZOOM)
+  })
+})
+
+describe('wrapping deep operator graphs', () => {
+  /** A chain of `n` Relu operators, like a deep imported network. */
+  function chain(n: number) {
+    const base = ModelGraphSchema.parse(onnxGraph)
+    const template = base.nodes.find((node) => node.op_type !== 'Input') ?? base.nodes[0]
+    const nodes = Array.from({ length: n }, (_, i) => ({
+      ...template,
+      id: `op_${i}`,
+      name: `/op_${i}`,
+      op_type: 'Relu',
+      unsupported: false,
+    }))
+    const edges = nodes.slice(1).map((node, i) => ({
+      id: `e_${i}`,
+      source: `op_${i}`,
+      target: node.id,
+      tensor_name: `t_${i}`,
+    }))
+    return { ...base, nodes, edges }
+  }
+
+  it('keeps short chains on one row', () => {
+    const place = wrapColumns(WRAP_COLUMNS, 1)
+    expect(place(WRAP_COLUMNS - 1)).toEqual({ slot: WRAP_COLUMNS - 1, row: 0 })
+  })
+
+  it('snakes long chains so neighbours stay adjacent', () => {
+    const place = wrapColumns(120, 0.5)
+    const placed = Array.from({ length: 120 }, (_, column) => place(column))
+    const perRow = placed.filter((p) => p.row === 0).length
+    expect(perRow).toBeGreaterThan(1)
+    for (let i = 1; i < placed.length; i++) {
+      const [a, b] = [placed[i - 1], placed[i]]
+      // Either the next slot along the row, or straight down at a row turn.
+      if (a.row === b.row) expect(Math.abs(a.slot - b.slot)).toBe(1)
+      else expect([b.row - a.row, b.slot - a.slot]).toEqual([1, 0])
+    }
+  })
+
+  it('puts constants just before the operator that uses them, not in column 0', () => {
+    const graph = chain(6)
+    graph.nodes[0] = { ...graph.nodes[0], op_type: 'Input' }
+    const constant = { ...graph.nodes[1], id: 'const', name: '/const', op_type: 'Constant' }
+    const graphWithConst = {
+      ...graph,
+      nodes: [...graph.nodes, constant],
+      edges: [...graph.edges, { id: 'e_const', source: 'const', target: 'op_5', tensor_name: 'k' }],
+    }
+    const columns = columnsOf(graphWithConst)
+    expect(columns.get('op_5')).toBe(5)
+    expect(columns.get('const')).toBe(4)
+  })
+
+  it('lays a 100-operator chain out roughly 16:9 instead of one long row', () => {
+    const { bounds } = computeLayout(chain(100))
+    const ratio = (bounds.maxX - bounds.minX) / (bounds.maxY - bounds.minY)
+    expect(ratio).toBeGreaterThan(0.8)
+    expect(ratio).toBeLessThan(4)
   })
 })

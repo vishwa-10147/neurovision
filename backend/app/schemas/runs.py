@@ -18,6 +18,7 @@ from app.schemas.events import (
     NonNegativeFloat,
     RunCommand,
     StepHealth,
+    StepSystem,
 )
 from app.schemas.graph import Identifier
 
@@ -69,6 +70,7 @@ class LoggedStep(_Strict):
         Field(max_length=MAX_ACTIVATION_LAYERS),
     ] = Field(default_factory=dict)
     health: StepHealth | None = None
+    system: StepSystem | None = None
 
 
 class EventBatch(_Strict):

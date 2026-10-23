@@ -6,7 +6,7 @@
 import { showsUnits, unitCount } from '../../lib/graph'
 import type { Selection } from '../../stores/modelStore'
 import type { ModelGraph } from '../../types/graph'
-import { columnsOf, type LayerRole } from '../visualization-2d/layout'
+import { columnsOf, wrapColumns, type LayerRole, type Placement } from '../visualization-2d/layout'
 
 export type Vec3 = [number, number, number]
 
@@ -105,6 +105,13 @@ export function planScene(graph: ModelGraph): Scene3D {
     byColumn.set(column, [...(byColumn.get(column) ?? []), node.id])
   }
 
+  // Long operator chains wrap into rows laid out in depth (see wrapColumns).
+  const tallest = Math.max(1, ...[...byColumn.values()].map((ids) => ids.length))
+  const rowDepth = (tallest + 2) * LAYER_SPACING
+  const place = units
+    ? (column: number): Placement => ({ slot: column, row: 0 })
+    : wrapColumns(byColumn.size, LAYER_SPACING / rowDepth)
+
   const layers: Layer3D[] = []
   const layerById = new Map<string, Layer3D>()
   const unitList: Unit3D[] = []
@@ -112,8 +119,9 @@ export function planScene(graph: ModelGraph): Scene3D {
   for (const node of graph.nodes) {
     const column = columns.get(node.id) ?? 0
     const siblings = byColumn.get(column) ?? [node.id]
-    const x = column * LAYER_SPACING
-    const zOffset = (siblings.indexOf(node.id) - (siblings.length - 1) / 2) * LAYER_SPACING
+    const { slot, row } = place(column)
+    const x = slot * LAYER_SPACING
+    const zOffset = row * rowDepth + (siblings.indexOf(node.id) - (siblings.length - 1) / 2) * LAYER_SPACING
     const role: LayerRole =
       node.op_type === 'Input' ? 'input' : hasOutgoing.has(node.id) ? 'hidden' : 'output'
     const count = counts.get(node.id) ?? null
