@@ -12,6 +12,7 @@ import { RunControls } from './RunControls'
 import { LayerHealth, RunAlerts } from './RunHealth'
 import { LiveGraph } from './LiveGraph'
 import { RunSystem } from './RunSystem'
+import { RunVisuals } from './RunVisuals'
 import { formatDuration, systemRow } from './system'
 
 const RunMetricCharts = lazy(() => import('../training-lab/MetricCharts').then((m) => ({ default: m.RunMetricCharts })))
@@ -26,6 +27,7 @@ export function LiveRuns() {
   const run = useLiveRunStore((s) => s.run)
   const points = useLiveRunStore((s) => s.points)
   const activations = useLiveRunStore((s) => s.activations)
+  const visuals = useLiveRunStore((s) => s.visuals)
   const health = useLiveRunStore((s) => s.health)
   const healthPoints = useLiveRunStore((s) => s.healthPoints)
   const alerts = useLiveRunStore((s) => s.alerts)
@@ -35,6 +37,16 @@ export function LiveRuns() {
   const watch = useLiveRunStore((s) => s.watch)
   const applyEvents = useLiveRunStore((s) => s.applyEvents)
   const setStream = useLiveRunStore((s) => s.setStream)
+  const pendingRunName = useLiveRunStore((s) => s.pendingRunName)
+  const expect = useLiveRunStore((s) => s.expect)
+  // Open a run started from the Neural Lab once the script has created it.
+  useEffect(() => {
+    const info = pendingRunName ? runs?.find((r) => r.name === pendingRunName) : undefined
+    if (info) {
+      watch(info)
+      expect(null)
+    }
+  }, [runs, pendingRunName, watch, expect])
   const { reconnect } = useEventStream(run?.runId ?? null, run !== null, applyEvents, setStream)
 
   return (
@@ -103,6 +115,7 @@ export function LiveRuns() {
                   activations={activations}
                 />
               )}
+              <RunVisuals visuals={visuals} />
               {points.length > 0 && (
                 <ErrorBoundary
                   fallback={(_, reset) => <ErrorState error={new Error('The charts could not be shown.')} onRetry={reset} />}

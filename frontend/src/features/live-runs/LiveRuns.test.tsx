@@ -227,4 +227,24 @@ describe('Live runs', () => {
     expect(panel.querySelector('[data-node-id="n0"] rect')).toHaveAttribute('data-value', '0.5')
     expect(panel.querySelector('[data-node-id="n1"] rect')).not.toHaveAttribute('data-value')
   })
+
+  it('draws the scatter plots and matrices a script attaches', async () => {
+    await watchSpiral()
+    act(() => {
+      const socket = FakeSocket.latest()
+      socket.emit(started('run_a'))
+      socket.emit(
+        stepEvent('run_a', 1, {
+          visuals: {
+            latent: { kind: 'scatter', x: [0, 1, 2], y: [1, 0, 1], labels: [0, 1, 1], x_label: 'z1' },
+            attention: { kind: 'matrix', rows: 2, cols: 2, values: [0.1, 0.9, 0.5, 0.5], scale: 'sequential' },
+          },
+        }),
+      )
+    })
+    const panel = await screen.findByRole('region', { name: 'Custom visuals' })
+    expect(within(panel).getByRole('img', { name: 'latent: 3 points in 2 classes' })).toBeInTheDocument()
+    expect(within(panel).getByRole('img', { name: 'attention, 2 by 2' })).toBeInTheDocument()
+    expect(panel).toHaveTextContent('Sent with step 10')
+  })
 })

@@ -586,3 +586,40 @@ class TestSystem:
         assert log(client, run_id, token, [bad]).status_code == 422
         many = step(1, system={"gpus": [{"index": i} for i in range(9)]})
         assert log(client, run_id, token, [many]).status_code == 422
+
+
+class TestVisuals:
+    scatter = {"kind": "scatter", "x": [0.0, 1.0], "y": [1.0, 0.5], "labels": [0, 3]}
+    grid = {
+        "kind": "matrix",
+        "rows": 2,
+        "cols": 2,
+        "values": [0, 0.5, 0.5, 1],
+        "scale": "sequential",
+    }
+
+    def test_visuals_are_streamed_and_only_the_latest_is_replayed(
+        self, client: TestClient
+    ) -> None:
+        run_id, token = create(client)
+        steps = [
+            step(1, visuals={"latent": self.scatter}),
+            step(2, visuals={"attention": self.grid}),
+            step(3),
+        ]
+        assert log(client, run_id, token, steps).status_code == 202
+        finish(client, run_id, token)
+        logged = of_type(stream(client, run_id), "training.step")
+        assert [bool(s["visuals"]) for s in logged] == [False, True, False]
+        assert logged[1]["visuals"]["attention"]["values"] == [0, 0.5, 0.5, 1]
+
+    def test_rejects_inconsistent_visuals(self, client: TestClient) -> None:
+        run_id, token = create(client)
+        uneven = {**self.scatter, "labels": [0]}
+        wrong_size = {**self.grid, "values": [1, 2, 3]}
+        too_big = {"kind": "matrix", "rows": 65, "cols": 1, "values": [0.0] * 65}
+        for visual in (uneven, wrong_size, too_big):
+            bad = step(1, visuals={"v": visual})
+            assert log(client, run_id, token, [bad]).status_code == 422
+        many = step(1, visuals={f"v{i}": self.scatter for i in range(7)})
+        assert log(client, run_id, token, [many]).status_code == 422

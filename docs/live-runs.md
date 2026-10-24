@@ -163,6 +163,32 @@ run = nv.start_run("my CNN", total_epochs=30, model=model, example_input=x_val[:
 
 ![Digits CNN training live, colored by gradient norm](images/demos/cnn-gradient-norms.png)
 
+## Custom visuals
+
+Attach up to six named visuals to a step; Live Runs draws the latest ones
+in **Visuals from the script**, exactly as sent:
+
+``` python
+run.log(epoch=epoch, metrics={"loss": loss}, visuals={
+    "latent space": nv.scatter(z[:, 0], z[:, 1], labels=y, x_label="z1", y_label="z2"),
+    "hidden state": nv.matrix(states[0], row_label="time step", col_label="unit"),
+    "generated digits": nv.matrix(nv.image_grid(images, columns=4), scale="sequential"),
+})
+```
+
+-   `nv.scatter(x, y, labels=None)`: at most 512 points; `labels` (0–99)
+    color the points by class.
+-   `nv.matrix(values, scale="diverging"|"sequential")`: a 2D array, at
+    most 64 × 64 (larger ones are cropped); diverging centers on zero,
+    sequential runs low to high (probabilities, pixels).
+-   `nv.image_grid(images, columns=4, padding=1)`: tiles small images
+    `[n, h, w]` into one matrix.
+
+Only the latest visuals are kept for replay. The SDK splits batches so
+steps with large visuals stay under the 2 MB request limit. The demos in
+[`sdk/examples`](../sdk/examples/README.md) use this for latent spaces,
+hidden states, generated images, graph embeddings and RL trajectories.
+
 ## System use, speed and ETA
 
 Every logged step also carries timing and resource figures, shown in

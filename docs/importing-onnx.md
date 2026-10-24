@@ -32,12 +32,33 @@ each `Add`. In eval mode the exporter folds BatchNorm into the preceding
 convolutions, so the graph shows the folded weights, which is what the
 file contains.
 
-### TensorFlow / Keras and scikit-learn
+### scikit-learn
 
-Use [`tf2onnx`](https://github.com/onnx/tensorflow-onnx) or
-[`skl2onnx`](https://github.com/onnx/sklearn-onnx). The resulting files
-import the same way. (These converters were not part of the verification
-above.)
+``` python
+from skl2onnx import to_onnx
+
+onnx_model = to_onnx(fitted_model, X_train[:1].astype("float32"),
+                     options={"zipmap": False})   # probabilities as a tensor
+open("model.onnx", "wb").write(onnx_model.SerializeToString())
+```
+
+Verified with decision trees, random forests, gradient boosting, logistic
+regression (with a scaler), SVMs and k-NN on iris: they import, run in
+ONNX Runtime, and their labels and probabilities match scikit-learn's.
+Tree models (`TreeEnsembleClassifier` / `Regressor`) show their trees in
+the inspector: the first three, up to 127 nodes each, with `fN ≤ t`
+splits on input column N and leaves colored by class. Without
+`zipmap=False`, probabilities come back as a list of maps per row
+(ZipMap); NeuroVision converts them to a `[batch, classes]` tensor and
+says so in the run notes.
+
+![A scikit-learn forest's trees in the inspector](images/classical/onnx-forest-trees.png)
+
+### TensorFlow / Keras
+
+Use [`tf2onnx`](https://github.com/onnx/tensorflow-onnx). The resulting
+files import the same way. (This converter was not part of the
+verification above.)
 
 ## What you see
 

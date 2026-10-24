@@ -737,3 +737,30 @@ code {
 .live-graph-canvas { height: 520px; margin: 0.6rem 0; border: 1px solid var(--border, transparent); border-radius: 8px; overflow: hidden; }
 .live-graph-canvas .graph-view { height: 100%; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0; }
+.visual-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
+.visual { margin: 0; display: grid; gap: 0.3rem; justify-items: start; }
+.visual figcaption { font-weight: 600; font-size: 0.85rem; }
+.visual-frame { fill: none; stroke: var(--border, #8884); }
+.visual-axis { font-size: 10px; fill: var(--muted); }
+.visual-range { margin: 0; font-size: 0.75rem; }
+.classical-body { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-start; }
+.classical-side { flex: 1 1 260px; display: grid; gap: 0.7rem; }
+.region-plot { border: 1px solid var(--border, #8884); border-radius: 8px; max-width: 100%; background: var(--surface, #fff); }
+.frame-controls { display: flex; align-items: center; gap: 0.6rem; }
+.frame-controls input[type='range'] { flex: 1; }
+.frame-label { font-variant-numeric: tabular-nums; min-width: 6rem; }
+.classical-legend li { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+.swatch-dot { width: 0.8rem; height: 0.8rem; border-radius: 50%; display: inline-block; }
+.algorithm-about { font-size: 0.85rem; margin: 0; }
+.tree-scroll { overflow-x: auto; }
+.tree-edge { stroke: var(--muted); stroke-width: 1.2; }
+.tree-node { stroke: rgba(0, 0, 0, 0.25); }
+.tree-text { font-size: 10px; fill: var(--text, #111); }
+.muted-text { fill: var(--muted); }
+.bars li { display: grid; grid-template-columns: 5rem 1fr 9rem; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+.bars .bar { height: 0.7rem; background: var(--accent); border-radius: 4px; min-width: 2px; }
+.bars .bar-value { font-variant-numeric: tabular-nums; color: var(--muted); }
+.lab-params { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.6rem 1rem; }
+.lab-jobs { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; }
+.lab-job-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.lab-python { font-size: 0.75rem; word-break: break-all; }

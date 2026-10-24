@@ -19,6 +19,7 @@ from app.schemas.events import (
     RunCommand,
     StepHealth,
     StepSystem,
+    Visuals,
 )
 from app.schemas.graph import Identifier
 
@@ -71,6 +72,7 @@ class LoggedStep(_Strict):
     ] = Field(default_factory=dict)
     health: StepHealth | None = None
     system: StepSystem | None = None
+    visuals: Visuals = Field(default_factory=dict)
 
 
 class EventBatch(_Strict):

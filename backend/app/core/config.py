@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     # memory cap (enforced on Linux/macOS; not available on Windows).
     inference_timeout_seconds: float = 10.0
     inference_max_memory_bytes: int = 2 * 1024 * 1024 * 1024
+    # Neural Lab: launches NeuroVision's own demo scripts (sdk/examples) as
+    # processes. On by default only in development; the Python that runs
+    # them (default: this one) can be a CUDA build to train on the GPU.
+    lab_enabled: bool | None = None
+    lab_python: str | None = None
+    lab_max_jobs: int = 2
     # Comma-separated list in the environment, e.g.
     # NEUROVISION_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
     cors_origins: Annotated[list[str], NoDecode] = [

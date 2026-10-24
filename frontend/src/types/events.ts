@@ -82,6 +82,35 @@ export const StepSystemSchema = z.strictObject({
   gpus: z.array(GpuStatsSchema).max(MAX_GPUS).default([]),
 })
 
+/** Custom visuals a script attaches to a step (bounded like the backend). */
+export const MAX_VISUALS = 6
+const AxisLabel = z.string().max(40).nullable().default(null)
+
+export const ScatterVisualSchema = z
+  .strictObject({
+    kind: z.literal('scatter'),
+    x: z.array(z.number()).min(1).max(512),
+    y: z.array(z.number()).min(1).max(512),
+    labels: z.array(z.number().int().min(0).max(99)).max(512).nullable().default(null),
+    x_label: AxisLabel,
+    y_label: AxisLabel,
+  })
+  .refine((v) => v.x.length === v.y.length && (v.labels === null || v.labels.length === v.x.length), 'x, y and labels must match')
+
+export const MatrixVisualSchema = z
+  .strictObject({
+    kind: z.literal('matrix'),
+    rows: z.number().int().min(1).max(64),
+    cols: z.number().int().min(1).max(64),
+    values: z.array(z.number()).min(1).max(4096),
+    scale: z.enum(['diverging', 'sequential']).default('diverging'),
+    row_label: AxisLabel,
+    col_label: AxisLabel,
+  })
+  .refine((v) => v.values.length === v.rows * v.cols, 'values must have rows × cols entries')
+
+export const VisualSchema = z.union([ScatterVisualSchema, MatrixVisualSchema])
+
 export const COMMAND_KINDS = ['pause', 'resume', 'stop', 'checkpoint', 'set_lr'] as const
 export type CommandKind = (typeof COMMAND_KINDS)[number]
 
@@ -136,6 +165,11 @@ export const TrainingStepSchema = z.strictObject({
   health: StepHealthSchema.nullable().default(null),
   /** External runs only: CPU, RAM and GPU use, timing and ETA. */
   system: StepSystemSchema.nullable().default(null),
+  /** External runs only: scatter plots and matrices the script attached. */
+  visuals: z
+    .record(Identifier, VisualSchema)
+    .refine(atMost(MAX_VISUALS), `at most ${MAX_VISUALS} visuals`)
+    .default({}),
 })
 
 export const TrainingCompletedSchema = z.strictObject({
@@ -188,5 +222,6 @@ export type TrainingEvent = z.infer<typeof TrainingEventSchema>
 export type TrainingStep = z.infer<typeof TrainingStepSchema>
 export type StepHealth = z.infer<typeof StepHealthSchema>
 export type StepSystem = z.infer<typeof StepSystemSchema>
+export type Visual = z.infer<typeof VisualSchema>
 export type RunCommand = z.infer<typeof RunCommandSchema>
 export type RunAlert = z.infer<typeof RunAlertSchema>

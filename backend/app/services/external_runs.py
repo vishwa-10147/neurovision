@@ -80,6 +80,7 @@ class ExternalRun(EventStream):
         # publishing agree.
         self.ingest_lock = threading.Lock()
         self._activation_index: int | None = None
+        self._visual_index: int | None = None
         self._health_indices: deque[int] = deque()
         # Two-way control (ADR 0008).
         self.controls = list(dict.fromkeys(request.controls))
@@ -165,6 +166,7 @@ class ExternalRun(EventStream):
                         selected_activations=logged.selected_activations,
                         health=logged.health,
                         system=logged.system,
+                        visuals=logged.visuals,
                     ).model_dump(mode="json")
                 )
                 self.step, self.epoch = logged.step, logged.epoch
@@ -381,6 +383,12 @@ class ExternalRun(EventStream):
                     "selected_activations": {},
                 }
             self._activation_index = len(self._events)
+        if event.get("visuals"):
+            # Like activations, keep visuals only on the latest step with them.
+            if self._visual_index is not None:
+                older = self._events[self._visual_index]
+                self._events[self._visual_index] = {**older, "visuals": {}}
+            self._visual_index = len(self._events)
         health = event.get("health")
         if health and (health.get("parameters") or health.get("activations")):
             # Per-layer details only on the latest DETAILED_HEALTH_STEPS steps.

@@ -71,6 +71,9 @@ def main() -> None:
         "--delay", type=float, default=0.05, help="seconds to pause per epoch"
     )
     parser.add_argument("--lr", type=float, default=0.003, help="Adam learning rate")
+    parser.add_argument(
+        "--name", default="Spiral MLP", help="run name shown in Live runs"
+    )
     args = parser.parse_args()
 
     torch.manual_seed(0)
@@ -97,7 +100,7 @@ def main() -> None:
 
     with (
         nv.start_run(
-            "Spiral MLP",
+            args.name,
             total_epochs=args.epochs,
             url=args.url,
             model=model,  # Linked: Live Runs shows this network's graph.

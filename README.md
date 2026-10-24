@@ -29,6 +29,7 @@ Everything the UI shows as model behaviour comes from **actually computed values
 - [Repository layout](#repository-layout)
 - [Quick start (Windows PowerShell)](#quick-start-windows-powershell)
 - [Watch your own PyTorch training live](#watch-your-own-pytorch-training-live)
+- [More algorithms: Classical ML Lab and Neural Lab](#more-algorithms-classical-ml-lab-and-neural-lab)
 - [Real vision models: benchmarks and views](#real-vision-models-benchmarks-and-views)
 - [Implemented API](#implemented-api)
 - [Quality checks](#quality-checks)
@@ -286,6 +287,16 @@ Pass `model=model, example_input=x[:1]` to `start_run` and Live Runs shows the n
 
 Every logged step also carries elapsed time, step time, an ETA, throughput (`samples=`), CPU and RAM (with `psutil`), and per-GPU load, memory, temperature and power (with `nvidia-ml-py`), shown in a **System & speed** panel with charts. Two rules flag an idle GPU and nearly full GPU memory.
 
+## More algorithms: Classical ML Lab and Neural Lab
+
+-   **Classical ML** fits nine scikit-learn algorithms (logistic regression, linear and RBF SVMs, k-NN, decision tree, random forest, gradient boosting, k-Means, PCA) and animates how they decide: decision regions over epochs, trees, k or iterations, plus the fitted tree, support vectors, centroids or principal components. [Guide](docs/classical-ml.md).
+-   **Neural Lab** configures and trains built-in PyTorch models live: MLP, CNN, LSTM/GRU/RNN, transformer, autoencoder, VAE, GAN, graph neural network, diffusion model and reinforcement learning (CartPole). Each streams to Live Runs with its graph, health, CPU/GPU/ETA and its own visuals (latent spaces, generated digits, hidden states, embeddings). [Guide](docs/neural-lab.md).
+-   **scikit-learn models** exported with skl2onnx import and run in the Model Explorer, with a tree view for forests and boosting.
+
+| | |
+|---|---|
+| ![Random forest regions](docs/images/classical/random-forest.png) | ![VAE latent space](docs/images/lab/vae-latent.png) |
+
 ## Real vision models: benchmarks and views
 
 [`docs/vision-benchmarks.md`](docs/vision-benchmarks.md) measures seven pretrained torchvision models on an RTX 4070 Laptop GPU, from MobileNetV3 to ViT-B/16 and the 3D video CNN R3D-18: speed, GPU/CPU load, memory, ONNX export accuracy, predictions on real photos, 2D/3D views, feature maps and attention, and live GPU fine-tuning with ETA and system telemetry.
@@ -373,9 +384,11 @@ npm run build
 | [`docs/schemas.md`](docs/schemas.md) | Graph, event, error and health contracts; keeping Pydantic, JSON Schema and Zod in sync |
 | [`docs/importing-onnx.md`](docs/importing-onnx.md) | Exporting from PyTorch and importing, inspecting and running ONNX models |
 | [`docs/live-runs.md`](docs/live-runs.md) | Streaming your own training with the SDK |
+| [`docs/classical-ml.md`](docs/classical-ml.md) | Classical ML Lab: nine scikit-learn algorithms, animated |
+| [`docs/neural-lab.md`](docs/neural-lab.md) | Neural Lab: configure and train ten model families live |
 | [`docs/supported-models.md`](docs/supported-models.md) | Which models work in the Studio, the Model Explorer and Live Runs; linking a run to its graph |
 | [`docs/vision-benchmarks.md`](docs/vision-benchmarks.md) | Seven real vision models: speed, load, accuracy, 2D/3D views, attention, GPU fine-tuning |
-| [`docs/decisions/`](docs/decisions/) | Architecture decision records (0001–0009) |
+| [`docs/decisions/`](docs/decisions/) | Architecture decision records (0001–0010) |
 | [`PLAN.md`](PLAN.md) | Milestones and acceptance criteria |
 | [`SKILLS.md`](SKILLS.md) | Engineering standards and skills checklist |
 
@@ -407,6 +420,7 @@ The project is built milestone by milestone, and each milestone leaves the repos
 | 6 | Run imported models; stream your own training (Live Runs) | ✅ |
 | 7 | CNN feature maps, attention heads, filter views | ✅ |
 | — | Training health alerts and two-way run controls ([ADR 0008](docs/decisions/0008-run-health-and-controls.md)) | ✅ |
+| — | Classical ML Lab (9 algorithms), Neural Lab (10 model families), custom visuals in Live Runs, scikit-learn models with tree view ([ADR 0010](docs/decisions/0010-more-algorithms.md)) | ✅ |
 | — | Live network graph for live runs (2D/3D, colored by activations, gradients or dead units) and demo set: MLP, CNN, self-attention, autoencoder ([ADR 0009](docs/decisions/0009-live-run-graphs.md)) | ✅ |
 | — | System and GPU telemetry with ETA in Live Runs; heavy-model support in the Model Explorer (wrapped 2D/3D layouts, photo inputs, capture on request, per-map contrast, video tensors) and [benchmarks](docs/vision-benchmarks.md) | ✅ |
 | Next | Learning Mode, saved projects, deployment | planned |

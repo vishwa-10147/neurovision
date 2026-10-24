@@ -10,3 +10,5 @@ onnxruntime==1.31.0
 # Install the right PyTorch build for your platform first (see README); this
 # pin is satisfied by local variants such as 2.14.1+cpu.
 torch==2.14.1
+# Classical ML Lab (POST /classical/fit) and the digits demos.
+scikit-learn==1.9.1

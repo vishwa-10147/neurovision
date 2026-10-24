@@ -8,6 +8,7 @@ import { formatValue } from '../../lib/values'
 import type { GraphEdge, GraphNode } from '../../types/graph'
 import { InitializerRefSchema, type InitializerRef, type TensorValues } from '../../types/imports'
 import { tensorTarget } from '../../features/model-import/viewerTargets'
+import { TreeEnsembleView } from './TreeEnsembleView'
 
 const PREVIEW_VALUES = 12
 const CONV_OPS = new Set(['Conv', 'ConvTranspose'])
@@ -117,6 +118,12 @@ export function OperatorDetails({ node }: { node: GraphNode }) {
           >
             {explorer.capturing ? 'Running…' : 'Capture this operator and run again'}
           </button>
+        </div>
+      )}
+      {onnx.tree_ensemble !== undefined && (
+        <div className="initializers" aria-label="Trees">
+          <h4>Trees</h4>
+          <TreeEnsembleView metadata={onnx.tree_ensemble} />
         </div>
       )}
       {initializers.length > 0 && (

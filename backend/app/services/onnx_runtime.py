@@ -378,7 +378,7 @@ def execute(
             "inference_failed",
             f"ONNX Runtime could not run this model: {message[:MAX_ERROR_TEXT]}",
         ) from error
-    notes = list(prepared.notes)
+    notes = list(prepared.notes) + list(timings.get("notes", []))
     if timings["load_ms"]:
         notes.append(
             f"Loading the model into ONNX Runtime took {timings['load_ms']:.0f} ms (cached for later runs)."

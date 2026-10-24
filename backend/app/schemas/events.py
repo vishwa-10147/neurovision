@@ -6,7 +6,14 @@ selected activations, never the full model state.
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, TypeAdapter
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    FiniteFloat,
+    TypeAdapter,
+    model_validator,
+)
 
 from app.schemas.graph import Identifier
 
@@ -106,6 +113,64 @@ class StepSystem(_Strict):
     )
 
 
+# Custom visuals a script can attach to a step (latent spaces, hidden
+# states, attention, generated images). Bounded like everything else.
+MAX_VISUALS = 6
+MAX_SCATTER_POINTS = 512
+MAX_MATRIX_SIDE = 64
+MAX_AXIS_LABEL = 40
+
+
+class ScatterVisual(_Strict):
+    """Points in 2D, optionally with an integer class per point."""
+
+    kind: Literal["scatter"]
+    x: Annotated[list[FiniteFloat], Field(min_length=1, max_length=MAX_SCATTER_POINTS)]
+    y: Annotated[list[FiniteFloat], Field(min_length=1, max_length=MAX_SCATTER_POINTS)]
+    labels: (
+        Annotated[
+            list[Annotated[int, Field(ge=0, le=99)]],
+            Field(max_length=MAX_SCATTER_POINTS),
+        ]
+        | None
+    ) = None
+    x_label: Annotated[str, Field(max_length=MAX_AXIS_LABEL)] | None = None
+    y_label: Annotated[str, Field(max_length=MAX_AXIS_LABEL)] | None = None
+
+    @model_validator(mode="after")
+    def _same_lengths(self) -> "ScatterVisual":
+        if len(self.x) != len(self.y) or (
+            self.labels is not None and len(self.labels) != len(self.x)
+        ):
+            raise ValueError("x, y and labels must have the same length")
+        return self
+
+
+class MatrixVisual(_Strict):
+    """A rows × cols grid of values, row-major (heatmaps, images)."""
+
+    kind: Literal["matrix"]
+    rows: Annotated[int, Field(ge=1, le=MAX_MATRIX_SIDE)]
+    cols: Annotated[int, Field(ge=1, le=MAX_MATRIX_SIDE)]
+    values: Annotated[
+        list[FiniteFloat], Field(min_length=1, max_length=MAX_MATRIX_SIDE**2)
+    ]
+    # "diverging": signed, zero is neutral; "sequential": low to high.
+    scale: Literal["diverging", "sequential"] = "diverging"
+    row_label: Annotated[str, Field(max_length=MAX_AXIS_LABEL)] | None = None
+    col_label: Annotated[str, Field(max_length=MAX_AXIS_LABEL)] | None = None
+
+    @model_validator(mode="after")
+    def _size(self) -> "MatrixVisual":
+        if len(self.values) != self.rows * self.cols:
+            raise ValueError("values must have rows × cols entries")
+        return self
+
+
+Visual = Annotated[ScatterVisual | MatrixVisual, Field(discriminator="kind")]
+Visuals = Annotated[dict[Identifier, Visual], Field(max_length=MAX_VISUALS)]
+
+
 CommandKind = Literal["pause", "resume", "stop", "checkpoint", "set_lr"]
 CommandStatus = Literal["pending", "applied", "rejected", "expired"]
 
@@ -183,6 +248,8 @@ class TrainingStep(_EventBase):
     health: StepHealth | None = None
     # External runs only: resource use and timing (CPU, RAM, GPU, ETA).
     system: StepSystem | None = None
+    # External runs only: scatter plots and matrices the script attached.
+    visuals: Visuals = Field(default_factory=dict)
 
 
 class TrainingCompleted(_EventBase):

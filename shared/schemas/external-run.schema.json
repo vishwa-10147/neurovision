@@ -369,6 +369,32 @@
             }
           ],
           "default": null
+        },
+        "visuals": {
+          "additionalProperties": {
+            "discriminator": {
+              "mapping": {
+                "matrix": "#/$defs/MatrixVisual",
+                "scatter": "#/$defs/ScatterVisual"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ScatterVisual"
+              },
+              {
+                "$ref": "#/$defs/MatrixVisual"
+              }
+            ]
+          },
+          "maxProperties": 6,
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Visuals",
+          "type": "object"
         }
       },
       "required": [
@@ -377,6 +403,81 @@
         "metrics"
       ],
       "title": "LoggedStep",
+      "type": "object"
+    },
+    "MatrixVisual": {
+      "additionalProperties": false,
+      "description": "A rows \u00d7 cols grid of values, row-major (heatmaps, images).",
+      "properties": {
+        "kind": {
+          "const": "matrix",
+          "title": "Kind",
+          "type": "string"
+        },
+        "rows": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Rows",
+          "type": "integer"
+        },
+        "cols": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Cols",
+          "type": "integer"
+        },
+        "values": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4096,
+          "minItems": 1,
+          "title": "Values",
+          "type": "array"
+        },
+        "scale": {
+          "default": "diverging",
+          "enum": [
+            "diverging",
+            "sequential"
+          ],
+          "title": "Scale",
+          "type": "string"
+        },
+        "row_label": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Row Label"
+        },
+        "col_label": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Col Label"
+        }
+      },
+      "required": [
+        "kind",
+        "rows",
+        "cols",
+        "values"
+      ],
+      "title": "MatrixVisual",
       "type": "object"
     },
     "ParameterHealth": {
@@ -743,6 +844,86 @@
         "runs"
       ],
       "title": "RunList",
+      "type": "object"
+    },
+    "ScatterVisual": {
+      "additionalProperties": false,
+      "description": "Points in 2D, optionally with an integer class per point.",
+      "properties": {
+        "kind": {
+          "const": "scatter",
+          "title": "Kind",
+          "type": "string"
+        },
+        "x": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 512,
+          "minItems": 1,
+          "title": "X",
+          "type": "array"
+        },
+        "y": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 512,
+          "minItems": 1,
+          "title": "Y",
+          "type": "array"
+        },
+        "labels": {
+          "anyOf": [
+            {
+              "items": {
+                "maximum": 99,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maxItems": 512,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Labels"
+        },
+        "x_label": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "X Label"
+        },
+        "y_label": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Y Label"
+        }
+      },
+      "required": [
+        "kind",
+        "x",
+        "y"
+      ],
+      "title": "ScatterVisual",
       "type": "object"
     },
     "StepHealth": {

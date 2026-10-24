@@ -10,6 +10,8 @@ digit changing as training goes, health alerts and system use.
     python sdk/examples/train_autoencoder.py --url http://127.0.0.1:8001
 """
 
+import argparse
+
 import torch
 from demo_common import arguments, train_live
 from torch import nn
@@ -31,13 +33,18 @@ class Autoencoder(nn.Module):
 
 
 def main() -> None:
-    args = arguments(__doc__.splitlines()[0], epochs=60, lr=0.003)
+    def options(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "--code", type=int, default=8, help="size of the bottleneck code"
+        )
+
+    args = arguments(__doc__.splitlines()[0], epochs=60, lr=0.003, extra=options)
     torch.manual_seed(0)
     x_train, _, x_val, _ = digits()
     x_train, x_val = x_train.flatten(1), x_val.flatten(1)
     train_live(
-        "Digits autoencoder (64 → 8 → 64)",
-        Autoencoder(),
+        f"Digits autoencoder (64 → {args.code} → 64)",
+        Autoencoder(args.code),
         (x_train, x_train, x_val, x_val),
         args=args,
         probe_layers=["encoder.1", "encoder.3", "decoder.1"],

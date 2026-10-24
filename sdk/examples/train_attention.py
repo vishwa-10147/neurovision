@@ -11,6 +11,8 @@ per head in the Model Explorer.
     python sdk/examples/train_attention.py --url http://127.0.0.1:8001
 """
 
+import argparse
+
 import torch
 from demo_common import arguments, train_live
 from torch import nn
@@ -56,23 +58,35 @@ class SelfAttention(nn.Module):
         return self.out(mixed)
 
 
-class AttentionClassifier(nn.Module):
-    def __init__(self, dim: int = 32, heads: int = 4) -> None:
+class Block(nn.Module):
+    """Self-attention and a feed-forward layer, each with a residual and LayerNorm."""
+
+    def __init__(self, dim: int, heads: int) -> None:
         super().__init__()
-        self.embed = nn.Embedding(VOCAB, dim)
-        self.position = nn.Parameter(torch.randn(1, LENGTH, dim) * 0.1)
         self.attention = SelfAttention(dim, heads)
         self.norm1 = nn.LayerNorm(dim)
         self.feed_forward = nn.Sequential(
-            nn.Linear(dim, 64), nn.ReLU(), nn.Linear(64, dim)
+            nn.Linear(dim, 2 * dim), nn.ReLU(), nn.Linear(2 * dim, dim)
         )
         self.norm2 = nn.LayerNorm(dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.norm1(x + self.attention(x))
+        return self.norm2(x + self.feed_forward(x))
+
+
+class AttentionClassifier(nn.Module):
+    def __init__(self, dim: int = 32, heads: int = 4, blocks: int = 1) -> None:
+        super().__init__()
+        if dim % heads:
+            raise SystemExit(f"--dim ({dim}) must be divisible by --heads ({heads}).")
+        self.embed = nn.Embedding(VOCAB, dim)
+        self.position = nn.Parameter(torch.randn(1, LENGTH, dim) * 0.1)
+        self.blocks = nn.Sequential(*(Block(dim, heads) for _ in range(blocks)))
         self.head = nn.Linear(dim, 2)
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
-        x = self.embed(tokens) + self.position
-        x = self.norm1(x + self.attention(x))
-        x = self.norm2(x + self.feed_forward(x))
+        x = self.blocks(self.embed(tokens) + self.position)
         return self.head(x.mean(dim=1))
 
 
@@ -96,16 +110,28 @@ def sequences(count: int, seed: int) -> tuple[torch.Tensor, torch.Tensor]:
 
 
 def main() -> None:
-    args = arguments(__doc__.splitlines()[0], epochs=40, lr=0.002)
+    def options(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument("--dim", type=int, default=32, help="model width")
+        parser.add_argument(
+            "--heads", type=int, default=4, help="attention heads (divide --dim)"
+        )
+        parser.add_argument("--blocks", type=int, default=1, help="transformer blocks")
+
+    args = arguments(__doc__.splitlines()[0], epochs=40, lr=0.002, extra=options)
     torch.manual_seed(0)
     x_train, y_train = sequences(4000, seed=0)
     x_val, y_val = sequences(1000, seed=1)
     train_live(
         "Attention: is the first token repeated?",
-        AttentionClassifier(),
+        AttentionClassifier(args.dim, args.heads, args.blocks),
         (x_train, y_train, x_val, y_val),
         args=args,
-        probe_layers=["attention.softmax", "norm1", "feed_forward.1", "norm2"],
+        probe_layers=[
+            "blocks.0.attention.softmax",
+            "blocks.0.norm1",
+            f"blocks.{args.blocks - 1}.feed_forward.1",
+            f"blocks.{args.blocks - 1}.norm2",
+        ],
     )
 
 

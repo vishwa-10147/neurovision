@@ -3,3 +3,5 @@ pytest==9.1.1
 pytest-timeout==2.4.0
 httpx==0.28.1
 ruff==0.17.1
+# Exports scikit-learn models to ONNX in the tests.
+skl2onnx==1.20.0

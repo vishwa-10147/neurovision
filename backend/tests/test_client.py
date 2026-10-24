@@ -805,3 +805,75 @@ def test_update_ratio_is_averaged_per_optimizer_step() -> None:
     model(x).pow(2).mean().backward()
     optimizer.step()
     assert monitor._steps == 1
+
+
+# Custom visuals -----------------------------------------------------------------
+
+
+def test_visual_helpers() -> None:
+    points = nv.scatter(
+        torch.tensor([0.0, 1.0]), [2.0, 3.0], labels=[1, 2], x_label="z1"
+    )
+    assert points == {
+        "kind": "scatter",
+        "x": [0.0, 1.0],
+        "y": [2.0, 3.0],
+        "labels": [1, 2],
+        "x_label": "z1",
+    }
+    grid = nv.matrix(torch.arange(6.0).reshape(2, 3), scale="sequential")
+    assert grid["rows"] == 2 and grid["cols"] == 3 and grid["values"][-1] == 5.0
+    assert nv.matrix([[0.0] * 100] * 100)["rows"] == 64  # Cropped to 64 × 64.
+    mosaic = nv.image_grid(torch.ones(5, 2, 2), columns=4)
+    # 2 rows of tiles with 1-cell gaps: 2 * 2 + 1 rows, 4 * 2 + 3 columns.
+    assert len(mosaic) == 5 and len(mosaic[0]) == 11
+    assert mosaic[3][1] == 1.0 and mosaic[2][0] == 0.0 and mosaic[0][2] == 0.0
+    assert len(nv.image_grid(torch.ones(4, 2, 2), columns=2, padding=0)[0]) == 4
+    with pytest.raises(ValueError):
+        nv.matrix([])
+
+
+def test_visuals_are_sent_and_bad_ones_skipped(server: FakeServer) -> None:
+    run = start(server, track_system=False)
+    run.log(
+        epoch=1,
+        metrics={"loss": 1.0},
+        visuals={
+            "latent": nv.scatter([0.0], [1.0]),
+            "bad": {"kind": "matrix", "rows": 1, "cols": 1, "values": [float("nan")]},
+            "wrong": [1, 2],
+        },
+    )
+    run.finish()
+    assert set(server.events()[0]["visuals"]) == {"latent"}
+
+
+def test_large_visuals_split_batches_under_the_body_limit(server: FakeServer) -> None:
+    run = start(server, track_system=False, flush_interval=10)
+    big = {"attention": nv.matrix(torch.rand(64, 64))}
+    for i in range(20):
+        run.log(epoch=0, metrics={"loss": float(i)}, visuals=big)
+    run.finish()
+    sizes = [
+        len(json.dumps(body))
+        for _, url, body, _ in server.requests
+        if url.endswith("/events")
+    ]
+    assert len(server.events()) == 20 and max(sizes) < 2_000_000 and len(sizes) > 1
+
+
+def test_system_device_comes_from_the_model_not_from_cuda_state() -> None:
+    model = Net()
+    assert nv.SystemMonitor(device="cpu").sample()["device"] == "cpu"
+    server = ImportingServer()
+    run = nv.start_run(
+        "cpu model",
+        total_epochs=1,
+        transport=server,
+        model=model,
+        example_input=torch.zeros(1, 3),
+    )
+    run.log(epoch=1, metrics={"loss": 1.0})
+    run.finish()
+    assert server.events()[0]["system"]["device"] == "cpu"
+    assert "cuda_allocated_bytes" not in server.events()[0]["system"]

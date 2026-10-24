@@ -167,6 +167,83 @@ def _shape(info: ValueInfoProto) -> Shape:
     return dims
 
 
+TREE_OPS = {"TreeEnsembleClassifier", "TreeEnsembleRegressor"}
+MAX_TREES_SHOWN = 3
+MAX_NODES_PER_TREE = 127
+
+
+def _tree_ensemble(op: Any) -> dict[str, Any] | None:
+    """The first trees of an ONNX-ML tree ensemble, as drawable nodes.
+
+    Node attributes are truncated for display, so the trees are read from
+    the full attribute arrays here. Each tree: up to 127 nodes, breadth
+    first; a split sends inputs with feature ≤ threshold (BRANCH_LEQ) to
+    `left`. Leaves carry the weight per class (or the regression value).
+    """
+    if op.op_type not in TREE_OPS or op.domain != "ai.onnx.ml":
+        return None
+    a = {attr.name: attr for attr in op.attribute}
+    if "nodes_treeids" not in a:  # The ai.onnx.ml v5 form keeps trees elsewhere.
+        return None
+    tree_ids = list(a["nodes_treeids"].ints)
+    node_ids = list(a["nodes_nodeids"].ints)
+    features = list(a["nodes_featureids"].ints)
+    values = (
+        list(a["nodes_values"].floats) if "nodes_values" in a else [0.0] * len(tree_ids)
+    )
+    modes = [m.decode("utf-8", "replace") for m in a["nodes_modes"].strings]
+    true_ids = list(a["nodes_truenodeids"].ints)
+    false_ids = list(a["nodes_falsenodeids"].ints)
+    prefix = "class" if op.op_type == "TreeEnsembleClassifier" else "target"
+    w_tree = list(a[f"{prefix}_treeids"].ints)
+    w_node = list(a[f"{prefix}_nodeids"].ints)
+    w_id = list(a[f"{prefix}_ids"].ints)
+    w_value = list(a[f"{prefix}_weights"].floats)
+    outputs = max(w_id, default=0) + 1
+    weights: dict[tuple[int, int], list[float]] = {}
+    for t, n, k, v in zip(w_tree, w_node, w_id, w_value, strict=False):
+        weights.setdefault((t, n), [0.0] * outputs)[k] += v
+    nodes = {
+        (t, n): i for i, (t, n) in enumerate(zip(tree_ids, node_ids, strict=False))
+    }
+    trees = sorted(set(tree_ids))
+    shown = []
+    for tree in trees[:MAX_TREES_SHOWN]:
+        out: list[dict[str, Any]] = []
+        queue = [(0, 0)]
+        while queue and len(out) < MAX_NODES_PER_TREE:
+            node, depth = queue.pop(0)
+            i = nodes.get((tree, node))
+            if i is None:
+                continue
+            leaf = modes[i] == "LEAF"
+            left, right = (None, None) if leaf else (true_ids[i], false_ids[i])
+            out.append(
+                {
+                    "id": node,
+                    "depth": depth,
+                    "feature": None if leaf else features[i],
+                    "threshold": None
+                    if leaf
+                    else (values[i] if math.isfinite(values[i]) else None),
+                    "mode": modes[i],
+                    "left": left,
+                    "right": right,
+                    "values": [round(v, 6) for v in weights.get((tree, node), [])],
+                }
+            )
+            if not leaf:
+                queue += [(left, depth + 1), (right, depth + 1)]
+        shown.append(out)
+    return {
+        "kind": "classifier" if prefix == "class" else "regressor",
+        "trees": len(trees),
+        "outputs": outputs,
+        "nodes_total": len(tree_ids),
+        "shown": shown,
+    }
+
+
 def _attribute(attr: AttributeProto, warnings: list[str], node_label: str) -> Any:
     """JSON-safe, bounded view of an attribute value."""
     kind = attr.type
@@ -349,6 +426,11 @@ def import_onnx(data: bytes, model_id: str, file_name: str) -> ImportResult:
                             for name in weights
                         ],
                         **({"doc": _text(op.doc_string, 500)} if op.doc_string else {}),
+                        **(
+                            {"tree_ensemble": ensemble}
+                            if (ensemble := _tree_ensemble(op)) is not None
+                            else {}
+                        ),
                     }
                 },
             )

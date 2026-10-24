@@ -1,12 +1,14 @@
 # Which models NeuroVision supports
 
-NeuroVision works with models in three ways. Each has its own scope.
+NeuroVision works with models in five ways. Each has its own scope.
 
 | Where | What you can bring | What you get |
 |---|---|---|
 | **Architecture Studio + Training Lab** | Dense (fully connected) networks you design in the app: 1–16 inputs, up to 6 hidden layers of 1–32 units, 1–10 outputs, ReLU / tanh / sigmoid | Training in the browser's backend on moons, circles or spiral data; every unit, weight, activation and gradient in 2D and 3D |
 | **Model Explorer** | Any trained model exported to **ONNX**: from PyTorch, TensorFlow/Keras (tf2onnx) or scikit-learn (skl2onnx) | Graph in 2D and 3D, weights, running the model on your input or a photo, every operator's output, feature maps, attention heads, conv filters |
-| **Live Runs** | Any **PyTorch** training script, on CPU or GPU, via the one-file SDK | Live metrics, the network's graph colored as it trains, health alerts, CPU/GPU/ETA, pause/stop/learning-rate control |
+| **Classical ML** | Nine scikit-learn algorithms: logistic regression, linear and RBF SVMs, k-NN, decision tree, random forest, gradient boosting, k-Means, PCA ([guide](classical-ml.md)) | Decision regions animated over epochs, trees, k or iterations; the fitted tree, support vectors, centroids, principal components |
+| **Neural Lab** | Built-in PyTorch models you configure: MLP, CNN, LSTM/GRU/RNN, transformer, autoencoder, VAE, GAN, GNN, diffusion, REINFORCE ([guide](neural-lab.md)) | Trained live in Live Runs with graph, visuals, health and controls |
+| **Live Runs** | Any **PyTorch** training script, on CPU or GPU, via the one-file SDK | Live metrics, the network's graph colored as it trains, custom visuals, health alerts, CPU/GPU/ETA, pause/stop/learning-rate control |
 
 ## Model families, verified
 
@@ -19,7 +21,11 @@ Every row was run in this repository; the numbers come from
 | CNN | digits CNN, ResNet-18/50, MobileNetV3, EfficientNet-B0, ConvNeXt-Tiny | ✓ feature maps, filters | ✓ demo `train_digits_cnn.py`; `bench/train_live.py` on GPU |
 | Transformer / attention | self-attention classifier, ViT-B/16 (1,016 operators) | ✓ attention heads (captured on request above 200 operators) | ✓ demo `train_attention.py` (attention written out, see below) |
 | 3D CNN (video, volumes) | R3D-18 | ✓ 5D maps, one per frame | ✓ (PyTorch script; same SDK) |
-| Classical ML | scikit-learn via skl2onnx | ✓ graph and running | — (no training loop to stream) |
+| Recurrent (LSTM, GRU, RNN) | forecaster | ✓ (exports as LSTM/GRU/RNN operators) | ✓ demo `train_lstm.py`, Neural Lab |
+| Generative (VAE, GAN, diffusion) | digits VAE, digits GAN, 2D DDPM | ✓ | ✓ demos with latent space, samples |
+| Graph neural network | GCN on the karate club | ✓ (dense adjacency as MatMul) | ✓ demo `train_gnn.py` |
+| Reinforcement learning | REINFORCE on CartPole | ✓ policy network | ✓ demo `train_cartpole.py` |
+| Classical ML | trees, forests, boosting, linear models, SVMs, k-NN (skl2onnx) | ✓ graph, running, **tree view** | Classical ML Lab (in-app fitting) |
 
 Sizes: graphs up to 5,000 operators; files up to 64 MB by default
 (`NEUROVISION_MAX_UPLOAD_BYTES`; 512 MB covered ViT-B/16's 331 MB). The

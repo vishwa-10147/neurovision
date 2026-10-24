@@ -9,26 +9,30 @@ values, health alerts and system use.
     python sdk/examples/train_digits_cnn.py --url http://127.0.0.1:8001
 """
 
+import argparse
+
 import torch
 from demo_common import arguments, train_live
 from torch import nn
 
 
 class DigitsCNN(nn.Module):
-    def __init__(self) -> None:
+    """`blocks` conv + ReLU layers (channels doubling), a 2×2 max-pool, a classifier."""
+
+    def __init__(self, blocks: int = 2, channels: int = 16, hidden: int = 64) -> None:
         super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(1, 16, 3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(16, 32, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),  # 8×8 → 4×4
-        )
+        layers: list[nn.Module] = []
+        width = 1
+        for b in range(blocks):
+            layers += [nn.Conv2d(width, channels * 2**b, 3, padding=1), nn.ReLU()]
+            width = channels * 2**b
+        layers.append(nn.MaxPool2d(2))  # 8×8 → 4×4
+        self.features = nn.Sequential(*layers)
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(32 * 4 * 4, 64),
+            nn.Linear(width * 4 * 4, hidden),
             nn.ReLU(),
-            nn.Linear(64, 10),
+            nn.Linear(hidden, 10),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -52,14 +56,27 @@ def digits() -> tuple[torch.Tensor, ...]:
 
 
 def main() -> None:
-    args = arguments(__doc__.splitlines()[0], epochs=30, lr=0.002)
+    def options(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "--blocks", type=int, default=2, help="convolution layers (1-4)"
+        )
+        parser.add_argument(
+            "--channels", type=int, default=16, help="channels of the first layer"
+        )
+        parser.add_argument(
+            "--hidden", type=int, default=64, help="units in the classifier"
+        )
+
+    args = arguments(__doc__.splitlines()[0], epochs=30, lr=0.002, extra=options)
     torch.manual_seed(0)
     train_live(
         "Digits CNN",
-        DigitsCNN(),
+        DigitsCNN(args.blocks, args.channels, args.hidden),
         digits(),
         args=args,
-        probe_layers=["features.1", "features.3", "classifier.2"],
+        # The ReLU after each convolution, and the classifier's ReLU.
+        probe_layers=[f"features.{2 * b + 1}" for b in range(args.blocks)][:7]
+        + ["classifier.2"],
     )
 
 

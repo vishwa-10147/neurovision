@@ -25,8 +25,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import neurovision_client as nv  # noqa: E402
 
 
-def arguments(description: str, *, epochs: int, lr: float) -> argparse.Namespace:
+def arguments(
+    description: str,
+    *,
+    epochs: int,
+    lr: float,
+    extra: Callable[[argparse.ArgumentParser], None] | None = None,
+) -> argparse.Namespace:
+    """Common options; `extra` adds a demo's own (e.g. layer sizes)."""
     parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("--name", help="run name shown in Live runs")
     parser.add_argument("--url", help="NeuroVision backend (default $NEUROVISION_URL)")
     parser.add_argument("--epochs", type=int, default=epochs)
     parser.add_argument("--lr", type=float, default=lr, help="Adam learning rate")
@@ -38,6 +46,8 @@ def arguments(description: str, *, epochs: int, lr: float) -> argparse.Namespace
     parser.add_argument(
         "--no-graph", action="store_true", help="do not link the model's graph"
     )
+    if extra is not None:
+        extra(parser)
     return parser.parse_args()
 
 
@@ -82,7 +92,7 @@ def train_live(
 
     started = time.perf_counter()
     with nv.start_run(
-        name,
+        args.name or name,
         total_epochs=args.epochs,
         url=args.url,
         model=None if args.no_graph else model,

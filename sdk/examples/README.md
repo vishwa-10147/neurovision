@@ -19,6 +19,12 @@ where you see, while it trains:
 | `train_digits_cnn.py` | CNN: 2 conv blocks + classifier | scikit-learn digits (1,797 images) | 98.6 % in 3.3 s (30 epochs) |
 | `train_attention.py` | Self-attention (4 heads) + feed-forward | "is the first token repeated?", generated | 99.2 % in 19 s (40 epochs) |
 | `train_autoencoder.py` | 64 → 32 → **8** → 32 → 64 | scikit-learn digits | reconstruction MSE 0.023 in 5.9 s |
+| `train_lstm.py` | LSTM / GRU / RNN (`--cell`), 30-step window | generated seasonal series | validation MSE 0.021 (standardized) |
+| `train_gan.py` | generator + discriminator (MLPs) | scikit-learn digits | recognizable 8×8 digits after 150 epochs |
+| `train_vae.py` | VAE, 2D latent space | scikit-learn digits | digit classes cluster without labels; loss 24.4 |
+| `train_gnn.py` | 2-layer graph convolutional network | Zachary's karate club (real, via networkx) | 94–97 % of 34 members from 2 labels |
+| `train_diffusion.py` | DDPM denoiser, 100 noise levels | generated spiral | samples form the spiral after ~300 epochs |
+| `train_cartpole.py` | REINFORCE policy 4 → 64 → 2 | simulated cart-pole (no gym needed) | 500-step episodes, the maximum |
 | `../../bench/train_live.py` | ResNet, MobileNet, EfficientNet, ConvNeXt, ViT (pretrained) | digits at 224×224 | 98.6–99.7 %, see [vision benchmarks](../../docs/vision-benchmarks.md) |
 
 All run on the CPU too (`--device cpu`), more slowly.
@@ -33,9 +39,13 @@ pip install torch scikit-learn psutil nvidia-ml-py   # psutil / nvidia-ml-py: CP
 python sdk/examples/train_digits_cnn.py --url http://127.0.0.1:8000
 ```
 
-Options for the three new demos: `--epochs`, `--lr`, `--batch`,
-`--delay` (seconds per epoch, to watch slowly), `--device auto|cpu|cuda`,
-`--no-graph`.
+Every demo takes `--epochs`, `--lr`, `--delay` (seconds per epoch, to
+watch slowly), `--name`, `--device auto|cpu|cuda` and `--no-graph`; some
+take their own: `train_digits_cnn.py --blocks --channels --hidden`,
+`train_lstm.py --cell lstm|gru|rnn --hidden --layers`,
+`train_attention.py --dim --heads --blocks`, `train_autoencoder.py --code`.
+The [Neural Lab](../../docs/neural-lab.md) page sets these from the
+browser and starts the script for you.
 
 ## What each one shows
 
@@ -54,6 +64,34 @@ Options for the three new demos: `--epochs`, `--lr`, `--batch`,
     at ±1), and NeuroVision raises a *saturated units* alert: a real
     finding about this bottleneck, worth comparing with a linear code.
 -   **Spiral:** run with `--lr 0.5` to watch the health alerts fire.
+
+-   **LSTM / GRU / RNN:** the forecast against held-out values (blue =
+    actual, red = forecast) and the hidden state at every time step.
+-   **GAN:** 16 digits generated from the same fixed noise each epoch;
+    watch blobs turn into digits while the two losses balance.
+-   **VAE:** every held-out digit's 2D code, colored by its true class:
+    the classes separate although the model never sees labels.
+-   **GNN:** each member's 2D embedding splits into the two factions.
+-   **Diffusion:** fresh samples every 10 epochs; the loss barely moves
+    while the samples go from a blob to a spiral.
+-   **CartPole:** the pole angle over the latest episode; episodes grow
+    from ~20 steps to the 500-step maximum.
+
+## Custom visuals
+
+Any script can attach scatter plots and heatmaps to a step:
+
+``` python
+run.log(
+    epoch=epoch,
+    metrics={"loss": loss},
+    visuals={
+        "latent space": nv.scatter(z[:, 0], z[:, 1], labels=y),  # ≤ 512 points
+        "attention": nv.matrix(weights[0], scale="sequential"),  # ≤ 64 × 64
+        "samples": nv.matrix(nv.image_grid(images, columns=4), scale="sequential"),
+    },
+)
+```
 
 ## Use it in your own script
 

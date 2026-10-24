@@ -58,6 +58,9 @@ __all__ = [
     "Run",
     "SystemMonitor",
     "export_onnx",
+    "image_grid",
+    "matrix",
+    "scatter",
     "start_run",
 ]
 
@@ -71,6 +74,11 @@ MAX_NAME_LENGTH = 256
 MAX_MESSAGE_LENGTH = 300
 MAX_LEARNING_RATE = 10.0
 MAX_GPUS = 8
+MAX_VISUALS = 6
+MAX_SCATTER_POINTS = 512
+MAX_MATRIX_SIDE = 64
+# Requests stay under the server's 2 MB body limit.
+MAX_BATCH_BYTES = 1_500_000
 
 # 127.0.0.1, not localhost: on Windows, "localhost" tries IPv6 first and
 # costs about 2 s per request against a server listening on IPv4 only.
@@ -215,10 +223,109 @@ def start_run(
         on_checkpoint=on_checkpoint,
         control_interval=control_interval,
         total_epochs=total_epochs,
-        system=SystemMonitor() if track_system else None,
+        system=SystemMonitor(device=_device_of(model)) if track_system else None,
     )
     logger.info("NeuroVision: logging run %s to %s", run.run_id, base)
     return run
+
+
+def scatter(
+    x: Any,
+    y: Any,
+    labels: Any = None,
+    *,
+    x_label: str | None = None,
+    y_label: str | None = None,
+) -> dict[str, Any]:
+    """A 2D scatter plot for run.log(visuals=...): at most 512 points.
+
+    `labels` (optional) are integer classes 0–99, one per point, for colors.
+    Longer inputs keep their first 512 points.
+    """
+    xs, ys = _values(x)[:MAX_SCATTER_POINTS], _values(y)[:MAX_SCATTER_POINTS]
+    n = min(len(xs), len(ys))
+    visual: dict[str, Any] = {"kind": "scatter", "x": xs[:n], "y": ys[:n]}
+    if labels is not None:
+        visual["labels"] = [max(0, min(99, int(v))) for v in _values(labels)[:n]]
+        if len(visual["labels"]) != n:
+            raise ValueError("labels must have one entry per point")
+    if x_label:
+        visual["x_label"] = x_label[:40]
+    if y_label:
+        visual["y_label"] = y_label[:40]
+    return visual
+
+
+def matrix(
+    values: Any,
+    *,
+    scale: str = "diverging",
+    row_label: str | None = None,
+    col_label: str | None = None,
+) -> dict[str, Any]:
+    """A 2D matrix for run.log(visuals=...): heatmaps, attention, images.
+
+    `values` is 2D (a tensor, array or nested lists), at most 64 × 64; larger
+    ones are cropped to the top-left 64 × 64. `scale="sequential"` draws low
+    to high (probabilities, pixels); "diverging" centers on zero.
+    """
+    if hasattr(values, "detach"):
+        values = values.detach().float().cpu().tolist()
+    elif hasattr(values, "tolist"):
+        values = values.tolist()
+    rows = [
+        list(map(float, row))[:MAX_MATRIX_SIDE]
+        for row in list(values)[:MAX_MATRIX_SIDE]
+    ]
+    if not rows or not rows[0] or any(len(r) != len(rows[0]) for r in rows):
+        raise ValueError(
+            "matrix() needs a non-empty 2D array with rows of equal length"
+        )
+    visual: dict[str, Any] = {
+        "kind": "matrix",
+        "rows": len(rows),
+        "cols": len(rows[0]),
+        "values": [v for row in rows for v in row],
+        "scale": "sequential" if scale == "sequential" else "diverging",
+    }
+    if row_label:
+        visual["row_label"] = row_label[:40]
+    if col_label:
+        visual["col_label"] = col_label[:40]
+    return visual
+
+
+def image_grid(images: Any, columns: int = 4, padding: int = 1) -> list[list[float]]:
+    """Tile small 2D images (e.g. generated 8 × 8 digits) into one matrix.
+
+    `images` has shape [n, height, width]; tiles are separated by `padding`
+    cells of 0. The result fits matrix() when the mosaic is at most 64 × 64.
+    """
+    if hasattr(images, "detach"):
+        images = images.detach().float().cpu().tolist()
+    elif hasattr(images, "tolist"):
+        images = images.tolist()
+    images = list(images)
+    height, width = len(images[0]), len(images[0][0])
+    rows = (len(images) + columns - 1) // columns
+    step_y, step_x = height + padding, width + padding
+    grid = [
+        [0.0] * (columns * step_x - padding) for _ in range(rows * step_y - padding)
+    ]
+    for k, image in enumerate(images):
+        top, left = (k // columns) * step_y, (k % columns) * step_x
+        for r in range(height):
+            for c in range(width):
+                grid[top + r][left + c] = float(image[r][c])
+    return grid
+
+
+def _device_of(model: Any) -> str | None:
+    """The device of a PyTorch model's first parameter, e.g. "cpu" or "cuda:0"."""
+    try:
+        return str(next(model.parameters()).device)
+    except Exception:
+        return None
 
 
 def export_onnx(model: Any, example_input: Any) -> bytes:
@@ -396,11 +503,14 @@ class Run:
         health: Mapping[str, Any] | None = None,
         samples: int | None = None,
         progress: float | None = None,
+        visuals: Mapping[str, Any] | None = None,
     ) -> None:
         """Queue one step. `step` defaults to one more than the last step.
 
         `samples` (optional) is how many training examples this step
         covers since the previous log() call, for a throughput figure.
+        `visuals` (optional) maps names to scatter() or matrix() results,
+        e.g. a 2D latent space or attention weights; at most 6 per step.
         `progress` (optional) is the fractional number of epochs done, e.g.
         epoch - 1 + batch / batches, so the ETA is right when you log several
         times per epoch; without it the ETA follows `epoch`.
@@ -416,6 +526,10 @@ class Run:
             return
         try:
             event = self._build(epoch, step, metrics, activations or {}, health)
+            if event is not None and visuals:
+                cleaned_visuals = self._clean_visuals(visuals)
+                if cleaned_visuals:
+                    event["visuals"] = cleaned_visuals
             if event is not None:
                 system = self._system_stats(
                     epoch if progress is None else progress, samples
@@ -580,6 +694,33 @@ class Run:
             event["health"] = cleaned
         return event
 
+    def _clean_visuals(self, visuals: Mapping[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for name, visual in visuals.items():
+            if len(out) == MAX_VISUALS:
+                self._warn_once(
+                    "visuals", f"kept only the first {MAX_VISUALS} visuals."
+                )
+                break
+            if not isinstance(visual, Mapping) or visual.get("kind") not in (
+                "scatter",
+                "matrix",
+            ):
+                self._warn_once(
+                    "visual-kind",
+                    f"skipped visual '{name}': use nv.scatter() or nv.matrix().",
+                )
+                continue
+            values = [v for key in ("x", "y", "values") for v in visual.get(key, [])]
+            if not all(math.isfinite(v) for v in values):
+                self._warn_once(
+                    "visual-nan",
+                    f"skipped visual '{name}' with NaN or infinite values.",
+                )
+                continue
+            out[str(name)[:MAX_NAME_LENGTH]] = dict(visual)
+        return out
+
     def _system_stats(self, epoch: float, samples: int | None) -> dict[str, Any]:
         """Timing (always) and resource use (when available) for this step."""
         if self._system is None:
@@ -626,10 +767,16 @@ class Run:
     def _drain(self) -> None:
         while True:
             with self._lock:
-                batch = [
-                    self._queue.popleft()
-                    for _ in range(min(MAX_EVENTS_PER_REQUEST, len(self._queue)))
-                ]
+                batch: list[dict[str, Any]] = []
+                size = 0
+                # Up to 32 steps, and under the server's body limit when
+                # steps carry large visuals.
+                while self._queue and len(batch) < MAX_EVENTS_PER_REQUEST:
+                    event_size = len(json.dumps(self._queue[0]))
+                    if batch and size + event_size > MAX_BATCH_BYTES:
+                        break
+                    batch.append(self._queue.popleft())
+                    size += event_size
                 if not batch:
                     self._idle.set()
                     return
@@ -858,7 +1005,11 @@ class SystemMonitor:
     CUDA is initialized, its allocator's memory use is reported too.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, device: str | None = None) -> None:
+        # Where the model trains ("cpu", "cuda:0"), when known from its
+        # parameters. CUDA being initialized is not enough: in PyTorch 2.14
+        # optimizer.step() initializes it even for models on the CPU.
+        self.device = device
         try:
             import psutil
 
@@ -898,13 +1049,16 @@ class SystemMonitor:
         gpus = [self._gpu(index, handle) for index, handle in enumerate(self._handles)]
         if gpus:
             stats["gpus"] = gpus
+        if self.device is not None:
+            stats["device"] = self.device
         torch = sys.modules.get("torch")
-        if torch is not None:
+        on_cuda = self.device is None or self.device.startswith("cuda")
+        if torch is not None and on_cuda:
             try:
                 if torch.cuda.is_available() and torch.cuda.is_initialized():
                     stats["cuda_allocated_bytes"] = float(torch.cuda.memory_allocated())
                     stats["cuda_reserved_bytes"] = float(torch.cuda.memory_reserved())
-                    stats["device"] = f"cuda:{torch.cuda.current_device()}"
+                    stats.setdefault("device", f"cuda:{torch.cuda.current_device()}")
             except Exception:
                 pass
         return stats

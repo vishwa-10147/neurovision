@@ -65,6 +65,27 @@ def summarize(name: str, array: np.ndarray, max_values: int) -> dict[str, Any]:
     }
 
 
+def as_array(name: str, value: Any) -> tuple[np.ndarray, str | None]:
+    """An output as an array, with a note when it had to be converted.
+
+    ONNX-ML models can return non-tensor outputs, e.g. scikit-learn's ZipMap:
+    a list of {class: probability} maps, one per row.
+    """
+    if isinstance(value, np.ndarray):
+        return value, None
+    if isinstance(value, list) and value and isinstance(value[0], dict):
+        keys = sorted(value[0])
+        array = np.array([[row[k] for k in keys] for row in value], dtype=np.float32)
+        shown = ", ".join(str(k) for k in keys[:10]) + (", …" if len(keys) > 10 else "")
+        return array, (
+            f"Output '{name}' is a list of maps (ZipMap); shown as a [batch, {len(keys)}] tensor "
+            f"with columns ordered by class: {shown}. Export with zipmap=False to get a tensor."
+        )
+    return np.asarray(
+        value
+    ), f"Output '{name}' was not a tensor; converted to an array."
+
+
 class RetainedRuns:
     """Tensors of recent runs (inputs and outputs), for later 2D views."""
 
@@ -150,15 +171,23 @@ def worker_main(conn: Connection, max_memory_bytes: int, threads: int) -> None:
             sessions.move_to_end(key)
             names = [o.name for o in session.get_outputs()]
             started = time.perf_counter()
-            arrays = session.run(names, feeds)
+            raw = session.run(names, feeds)
             run_ms = (time.perf_counter() - started) * 1000
+            converted = [as_array(n, v) for n, v in zip(names, raw, strict=True)]
+            arrays = [a for a, _ in converted]
+            output_notes = [note for _, note in converted if note]
             summaries = [
                 summarize(n, a, max_values) for n, a in zip(names, arrays, strict=True)
             ]
             kept = retained.add(
                 run_id, {**feeds, **dict(zip(names, arrays, strict=True))}
             )
-            timings = {"load_ms": load_ms, "run_ms": run_ms, "retained": kept}
+            timings = {
+                "load_ms": load_ms,
+                "run_ms": run_ms,
+                "retained": kept,
+                "notes": output_notes,
+            }
             conn.send(("ok", (summaries, timings)))
         except MapRequestError as error:
             conn.send(("bad_request", str(error)))

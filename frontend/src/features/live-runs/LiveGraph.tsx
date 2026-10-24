@@ -27,7 +27,8 @@ export function LiveGraph({
   const [graph, setGraph] = useState<ModelGraph | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [attempt, setAttempt] = useState(0)
-  const [mode, setMode] = useState<ColorMode>('activations')
+  // null until the user picks: then the first view with data is shown.
+  const [chosen, setChosen] = useState<ColorMode | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('2d')
 
@@ -47,6 +48,13 @@ export function LiveGraph({
 
   const index = useMemo(() => (graph ? indexModules(graph) : null), [graph])
   const stats = health?.stats ?? null
+  const mode: ColorMode =
+    chosen ??
+    (index &&
+    liveColors(index, 'activations', stats, activations).matched.length === 0 &&
+    Object.keys(stats?.parameters ?? {}).length > 0
+      ? 'gradients'
+      : 'activations')
   const colors = useMemo(
     () => (index ? liveColors(index, mode, stats, activations) : null),
     [index, mode, stats, activations],
@@ -82,7 +90,7 @@ export function LiveGraph({
           </p>
           <div className="chip-row" role="group" aria-label="Color by">
             {(Object.keys(MODES) as ColorMode[]).map((m) => (
-              <button key={m} type="button" className="chip" aria-pressed={mode === m} onClick={() => setMode(m)}>
+              <button key={m} type="button" className="chip" aria-pressed={mode === m} onClick={() => setChosen(m)}>
                 {MODES[m].label}
               </button>
             ))}

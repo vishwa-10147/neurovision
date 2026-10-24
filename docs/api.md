@@ -251,6 +251,14 @@ Two rules read them: `gpu_underused` (info: a GPU ≤ 20 % busy for 5
 logged steps in a row, when `device` is a CUDA device) and `gpu_memory_high` (warning: ≥ 95 % of a
 GPU's memory in use).
 
+A step may also carry **`visuals`**: up to 6 named entries, each either
+`{"kind": "scatter", "x": [...], "y": [...], "labels": [...]?, "x_label"?, "y_label"?}`
+(≤ 512 points, labels 0–99, equal lengths) or
+`{"kind": "matrix", "rows", "cols", "values": [...], "scale": "diverging"|"sequential", "row_label"?, "col_label"?}`
+(≤ 64 × 64, `values` row-major with rows × cols entries). Invalid visuals
+are rejected with `422`. Only the latest step with visuals keeps them in
+the replay history.
+
 The server's health rules turn these (and the `loss` / `val_loss`
 metrics) into `run.alert` events; the rules and thresholds are listed in
 [ADR 0008](decisions/0008-run-health-and-controls.md). A run publishes
@@ -300,6 +308,37 @@ Two-way control for runs whose script opted in (`controls`, ADR 0008).
 Every change of a command (issued, applied, rejected, expired) is
 published on the run's WebSocket as a `run.command` event with the
 command and the run's `paused` / `learning_rate` after the change.
+
+## `POST /classical/fit`
+
+Fits one scikit-learn algorithm and returns what the Classical ML Lab
+draws ([guide](classical-ml.md)). Body: `algorithm` (`logistic_regression`,
+`linear_svm`, `rbf_svm`, `knn`, `decision_tree`, `random_forest`,
+`gradient_boosting`, `kmeans`, `pca`), `dataset` (`moons`, `circles`,
+`spiral`, `blobs`, `digits`), `samples` (40–2,000), `noise` (0–0.5),
+`seed`, `test_fraction` (0.1–0.5) and the hyperparameters `c`, `gamma`,
+`neighbors`, `max_depth` (≤ 12), `estimators` (≤ 200), `learning_rate`,
+`clusters` (≤ 10), `epochs` (≤ 200). `422` names an algorithm that needs
+2D data when given `digits`.
+
+`200` returns the train/test points, `bounds`, `grid` (40), up to 40
+`frames` (`label`, `grid_class`, `grid_confidence`, train/test accuracy,
+and for k-means `centroids`, `assignments`, `inertia`), `fit_ms`, and when
+they apply `support_vectors`, `tree` (≤ 127 nodes), `feature_importance`
+and `pca` (`explained_variance_ratio`, `projected`, `mean`, `axes`).
+
+## Neural Lab: `GET /lab/templates`, `POST /lab/runs`, `GET /lab/runs`, `POST /lab/runs/{job_id}/stop`
+
+Starts NeuroVision's own demo scripts ([guide](neural-lab.md)).
+`GET /lab/templates` lists each template's typed, bounded parameters and
+whether the lab is enabled. `POST /lab/runs` with
+`{"template": "rnn", "params": {"cell": "gru", "hidden": 48}}` validates
+the parameters (`422` with the reason otherwise; also when two runs are
+already training or the lab is off), starts the script and returns `201`
+with `job_id`, `run_name` (the Live Runs run it creates), `status`
+(`running`, `finished`, `failed`, `stopped`), `exit_code` and the last
+output lines. `GET /lab/runs` lists recent jobs; `POST
+/lab/runs/{job_id}/stop` ends one (`404` if unknown).
 
 ## `POST /import/onnx?filename=…`
 

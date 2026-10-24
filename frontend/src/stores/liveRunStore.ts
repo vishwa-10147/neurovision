@@ -5,7 +5,7 @@
  * reports them (pending → applied/rejected/expired), never as assumed.
  */
 import { create } from 'zustand'
-import type { CommandKind, RunAlert, RunCommand, StepHealth, StepSystem, TrainingEvent } from '../types/events'
+import type { CommandKind, RunAlert, RunCommand, StepHealth, StepSystem, TrainingEvent, Visual } from '../types/events'
 import type { RunInfo, RunPoint, RunStatus } from '../types/runs'
 import type { StreamState } from './trainingStore'
 
@@ -49,6 +49,8 @@ interface LiveRunState {
   points: RunPoint[]
   /** Latest measured activations per layer, as sent by the script. */
   activations: Record<string, number[]>
+  /** Latest custom visuals, with the step that carried them. */
+  visuals: { step: number; items: Record<string, Visual> } | null
   /** Latest step's per-layer health statistics. */
   health: { step: number; stats: StepHealth } | null
   healthPoints: HealthPoint[]
@@ -60,8 +62,11 @@ interface LiveRunState {
   /** Latest known state of each command, by id. */
   commands: Record<number, RunCommand>
   stream: StreamState
+  /** A run to open as soon as it appears in the list (started from the Neural Lab). */
+  pendingRunName: string | null
 
   watch: (info: RunInfo) => void
+  expect: (runName: string | null) => void
   stopWatching: () => void
   applyEvents: (events: TrainingEvent[]) => void
   /** Record a command the dashboard just issued (before its event arrives). */
@@ -72,6 +77,7 @@ interface LiveRunState {
 const EMPTY = {
   points: [] as RunPoint[],
   activations: {} as Record<string, number[]>,
+  visuals: null as { step: number; items: Record<string, Visual> } | null,
   health: null,
   healthPoints: [] as HealthPoint[],
   system: null,
@@ -84,7 +90,9 @@ export const useLiveRunStore = create<LiveRunState>()((set, get) => ({
   run: null,
   ...EMPTY,
   stream: 'idle',
+  pendingRunName: null,
 
+  expect: (pendingRunName) => set({ pendingRunName }),
   watch: (info) => {
     if (get().run?.runId === info.run_id) return
     set({
@@ -112,6 +120,7 @@ export const useLiveRunStore = create<LiveRunState>()((set, get) => ({
     let nextRun = run
     let points = state.points
     let activations = state.activations
+    let visuals = state.visuals
     let health = state.health
     let healthPoints = state.healthPoints
     let system = state.system
@@ -131,6 +140,7 @@ export const useLiveRunStore = create<LiveRunState>()((set, get) => ({
           if (points === state.points) points = [...points]
           points.push({ epoch: event.epoch, step: event.step, metrics: event.metrics })
           if (Object.keys(event.selected_activations).length > 0) activations = event.selected_activations
+          if (Object.keys(event.visuals).length > 0) visuals = { step: event.step, items: event.visuals }
           if (event.health) {
             const stats = event.health
             if (Object.keys(stats.parameters).length > 0 || Object.keys(stats.activations).length > 0) {
@@ -179,7 +189,7 @@ export const useLiveRunStore = create<LiveRunState>()((set, get) => ({
     }
     if (healthPoints.length > MAX_HEALTH_POINTS) healthPoints = thin(healthPoints, MAX_HEALTH_POINTS)
     if (systemPoints.length > MAX_HEALTH_POINTS) systemPoints = thin(systemPoints, MAX_HEALTH_POINTS)
-    set({ run: nextRun, points, activations, health, healthPoints, system, systemPoints, alerts, commands })
+    set({ run: nextRun, points, activations, visuals, health, healthPoints, system, systemPoints, alerts, commands })
   },
   recordCommand: (command) => {
     const known = get().commands[command.command_id]
