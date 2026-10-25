@@ -6,6 +6,7 @@ import { useModelStore } from '../../stores/modelStore'
 import { ArchitectureEditor } from './ArchitectureEditor'
 import { ForwardPanel } from './ForwardPanel'
 import { GraphView } from './GraphView'
+import { ProjectPanel } from './ProjectPanel'
 import { useModelSync } from './useModelSync'
 
 export function ArchitectureStudio() {
@@ -31,6 +32,8 @@ export function ArchitectureStudio() {
           </p>
         )}
       </header>
+
+      <ProjectPanel />
 
       <div className="studio-grid">
         <ArchitectureEditor errors={errors} />

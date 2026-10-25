@@ -25,6 +25,9 @@ where you see, while it trains:
 | `train_gnn.py` | 2-layer graph convolutional network | Zachary's karate club (real, via networkx) | 94–97 % of 34 members from 2 labels |
 | `train_diffusion.py` | DDPM denoiser, 100 noise levels | generated spiral | samples form the spiral after ~300 epochs |
 | `train_cartpole.py` | REINFORCE policy 4 → 64 → 2 | simulated cart-pole (no gym needed) | 500-step episodes, the maximum |
+| `train_lightning.py` | PyTorch Lightning MLP | generated binary classes | framework callback, loss/validation/health |
+| `train_hf_trainer.py` | Hugging Face tiny BERT classifier | generated token rows, no downloads | framework callback, validation metrics |
+| `train_keras.py` | Keras Dense 3 → 8 → 2 | generated binary classes | framework callback, validation metrics |
 | `../../bench/train_live.py` | ResNet, MobileNet, EfficientNet, ConvNeXt, ViT (pretrained) | digits at 224×224 | 98.6–99.7 %, see [vision benchmarks](../../docs/vision-benchmarks.md) |
 
 All run on the CPU too (`--device cpu`), more slowly.
@@ -35,8 +38,16 @@ Start the backend and frontend (see the main README), open
 **Live runs**, then:
 
 ``` bash
-pip install torch scikit-learn psutil nvidia-ml-py   # psutil / nvidia-ml-py: CPU and GPU figures
+pip install ./sdk torch scikit-learn psutil nvidia-ml-py   # psutil / nvidia-ml-py: CPU and GPU figures
 python sdk/examples/train_digits_cnn.py --url http://127.0.0.1:8000
+```
+
+For the framework examples, install the matching optional extra:
+
+``` bash
+pip install "./sdk[lightning]"       # train_lightning.py
+pip install "./sdk[transformers]"    # train_hf_trainer.py
+pip install "./sdk[keras]"           # train_keras.py
 ```
 
 Every demo takes `--epochs`, `--lr`, `--delay` (seconds per epoch, to

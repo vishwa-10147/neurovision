@@ -52,6 +52,8 @@ from collections import OrderedDict, deque
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
+__version__ = "0.1.0"
+
 __all__ = [
     "ActivationProbe",
     "HealthMonitor",
@@ -1390,7 +1392,7 @@ class HealthMonitor:
         try:
             self.model.eval()
             with torch.no_grad():
-                self.model(self.probe_batch)
+                _forward(self.model, self.probe_batch)
         finally:
             for handle in handles:
                 handle.remove()
@@ -1400,6 +1402,14 @@ class HealthMonitor:
             if name in outputs:
                 stats[name] = _activation_stats(outputs[name], kind)
         return stats
+
+
+def _forward(model: Any, batch: Any) -> Any:
+    """Call the model on a probe batch; a mapping is passed as keyword
+    arguments, as Hugging Face models expect (e.g. input_ids, attention_mask)."""
+    if isinstance(batch, Mapping):
+        return model(**batch)
+    return model(batch)
 
 
 def _activation_stats(output: Any, kind: str) -> dict[str, Any]:
@@ -1481,7 +1491,7 @@ class ActivationProbe:
         try:
             self.model.eval()
             with torch.no_grad():
-                self.model(self.probe_batch)
+                _forward(self.model, self.probe_batch)
         finally:
             for handle in handles:
                 handle.remove()

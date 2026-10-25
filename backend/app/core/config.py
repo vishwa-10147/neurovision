@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     lab_enabled: bool | None = None
     lab_python: str | None = None
     lab_max_jobs: int = 2
+    # Versioned architecture projects survive backend restarts.
+    projects_dir: str = "data/projects"
     # Comma-separated list in the environment, e.g.
     # NEUROVISION_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
     cors_origins: Annotated[list[str], NoDecode] = [

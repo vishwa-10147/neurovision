@@ -12,6 +12,21 @@ const initialStore = useModelStore.getState()
 function mockBackend() {
   const submitted: DenseNetworkConfig[] = []
   const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+    if (_url.endsWith('/projects')) {
+      if (init?.method === 'POST') {
+        const body = JSON.parse(String(init.body)) as { config: DenseNetworkConfig }
+        return Response.json({
+          project_id: 'proj_test',
+          name: body.config.name,
+          description: '',
+          schema_version: 1,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+          config: body.config,
+        }, { status: 201 })
+      }
+      return Response.json({ projects: [] })
+    }
     const config = JSON.parse(String(init?.body)) as DenseNetworkConfig
     submitted.push(config)
     return Response.json({ model_id: `edu_${submitted.length}`, graph: denseGraph(config, `edu_${submitted.length}`) }, { status: 201 })
@@ -46,6 +61,12 @@ describe('Architecture Studio', () => {
     expect(container.querySelectorAll('circle[data-unit]')).toHaveLength(18)
     expect(container.querySelectorAll('line[data-connection]')).toHaveLength(76)
     expect(inspector().getByText('Nothing selected')).toBeInTheDocument()
+  })
+
+  it('saves the current architecture as a versioned project', async () => {
+    await renderStudio()
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Project saved.')
   })
 
   it('updates the inspector when a unit is clicked', async () => {

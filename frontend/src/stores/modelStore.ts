@@ -47,6 +47,7 @@ interface ModelState {
   forward: ForwardSnapshot | null
 
   updateConfig: (update: (config: DenseNetworkConfig) => DenseNetworkConfig) => void
+  loadConfig: (config: DenseNetworkConfig) => void
   resetToExample: () => void
   setLoading: () => void
   setModel: (modelId: string, graph: ModelGraph, config?: DenseNetworkConfig) => void
@@ -69,6 +70,7 @@ export const useModelStore = create<ModelState>()((set) => ({
   forward: null,
 
   updateConfig: (update) => set((state) => ({ config: update(state.config) })),
+  loadConfig: (config) => set({ config }),
   resetToExample: () => set({ config: EXAMPLE_CONFIG }),
   setLoading: () => set({ status: { state: 'loading' } }),
   setModel: (modelId, graph, config) =>

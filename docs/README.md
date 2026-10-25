@@ -13,13 +13,13 @@ For an overview of the whole system with its design rationale and measured evalu
 | [Neural Lab](neural-lab.md) | configure and train CNNs, LSTMs, transformers, VAEs, GANs, GNNs, diffusion and RL models live |
 | [Supported models](supported-models.md) | which model families work where, linking a live run to its graph, and what cannot be exported |
 | [Real vision models](vision-benchmarks.md) | speed, GPU/CPU load, accuracy and views of seven pretrained torchvision models, and live GPU fine-tuning |
-| [Watching your own training live](live-runs.md) | stream metrics and layer activations from your own training script with `sdk/neurovision_client.py` |
+| [Watching your own training live](live-runs.md) | stream metrics and layer activations from a raw loop or Lightning, Hugging Face Trainer and Keras callback |
 
 ## Reference
 
 | Document | Contents |
 |---|---|
-| [API reference](api.md) | Every REST and WebSocket endpoint: request and response shapes, limits, errors, in-memory storage |
+| [API reference](api.md) | Every REST and WebSocket endpoint: request and response shapes, limits, errors, and project storage |
 | [Shared contracts](schemas.md) | The model graph, training event, error and health contracts, and how the Pydantic, JSON Schema (`shared/schemas/`) and Zod versions are kept in sync |
 | [Architecture](../ARCHITECTURE.md) | System boundaries, components, data flow and engineering constraints |
 | [Development plan](../PLAN.md) | Milestones 0–7 and later, with tasks and acceptance criteria |
@@ -37,3 +37,7 @@ For an overview of the whole system with its design rationale and measured evalu
 | [0006](decisions/0006-external-runs.md) | External runs from users' own training scripts |
 | [0007](decisions/0007-tensor-views.md) | Feature-map, attention and filter views |
 | [0008](decisions/0008-run-health-and-controls.md) | Training health alerts and two-way run controls |
+| [0009](decisions/0009-live-run-graphs.md) | Link a live PyTorch run to its exported graph |
+| [0010](decisions/0010-more-algorithms.md) | Classical ML, Neural Lab and custom Live Run visuals |
+| [0011](decisions/0011-framework-callbacks.md) | Lazy framework callbacks, merged steps and pip packaging |
+| [0012](decisions/0012-local-project-persistence.md) | Versioned local project persistence without a premature database |

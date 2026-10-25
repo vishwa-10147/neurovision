@@ -184,6 +184,58 @@ nothing. The server closes the socket after the final event.
 
 -   External runs (ids `run_…`) stream on this same socket; see below.
 
+## Projects
+
+Projects are versioned JSON architecture documents stored under the local
+`NEUROVISION_PROJECTS_DIR` directory (default `data/projects`). They are
+intended for local development until authentication and ownership controls
+exist.
+
+### `GET /projects`
+
+Returns newest-first project summaries without embedding the full network
+configuration:
+
+``` json
+{
+  "projects": [
+    {
+      "project_id": "proj_abc123",
+      "name": "saved classifier",
+      "description": "",
+      "schema_version": 1,
+      "created_at": "2026-10-25T00:00:00+00:00",
+      "updated_at": "2026-10-25T00:00:00+00:00"
+    }
+  ]
+}
+```
+
+### `POST /projects`
+
+Saves a validated architecture definition and returns its versioned document:
+
+``` json
+{
+  "name": "saved classifier",
+  "description": "first lesson",
+  "config": {
+    "name": "saved classifier",
+    "input_units": 2,
+    "hidden_layers": [{"units": 8, "activation": "relu"}],
+    "output_units": 2,
+    "output_activation": null,
+    "seed": 7
+  }
+}
+```
+
+### `GET /projects/{project_id}`
+
+Reopens the complete project document, including its `schema_version` and
+architecture config. Files are written atomically so a process interruption
+does not replace a valid project with a partial JSON document.
+
 ## External runs
 
 Training scripts outside NeuroVision stream their own metrics and

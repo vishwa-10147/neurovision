@@ -117,8 +117,9 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full system design and [`docs/d
 neurovision/
 ├── frontend/                 # React + TypeScript app (Vite)
 │   └── src/
-│       ├── features/         # architecture-studio, training-lab, model-import,
-│       │                     # live-runs, visualization-2d, visualization-3d, dashboard, planned
+│       ├── features/         # architecture-studio, training-lab, model-import, live-runs,
+│       │                     # classical, neural-lab, visualization-2d, visualization-3d,
+│       │                     # dashboard, planned
 │       ├── components/       # inspector, state views
 │       ├── stores/  api/  types/  hooks/  lib/
 │       └── test/
@@ -129,12 +130,15 @@ neurovision/
 │   │   ├── services/         # ONNX import/runtime, training jobs, event stream, external runs, tensors
 │   │   ├── schemas/          # Pydantic models
 │   │   └── core/             # config, errors
-│   ├── tests/                # pytest suite (254 tests)
+│   ├── tests/                # pytest suite (320 tests)
 │   ├── requirements.txt  requirements-dev.txt  pyproject.toml
 │   └── .env.example
 ├── sdk/
-│   ├── neurovision_client.py # one-file client for streaming your own training
-│   └── examples/train_spiral.py
+│   ├── neurovision_client.py     # raw-loop client
+│   ├── neurovision_callbacks.py  # lazy Lightning / HF / Keras callbacks
+│   ├── pyproject.toml             # optional-dependency-free pip package
+│   ├── README.md
+│   └── examples/
 ├── bench/                    # Real-model benchmarks: vision_models.py, check_onnx.py, train_live.py, results/
 ├── shared/schemas/           # JSON Schemas for graph, events, errors, tensors (+ examples)
 ├── docs/                     # API reference, guides, design decisions (ADRs)
@@ -275,6 +279,14 @@ Controls are off unless you pass `control=True`. Anyone who can reach the backen
 
 A complete example is in [`sdk/examples/train_spiral.py`](sdk/examples/train_spiral.py). Run it with `--lr 0.5` to watch the alerts fire. The full guide is [`docs/live-runs.md`](docs/live-runs.md).
 
+### Use a training framework
+
+Install the package with `pip install ./sdk`, then add one callback to
+PyTorch Lightning, Hugging Face Trainer or Keras. The framework-specific
+extras are optional (`./sdk[lightning]`, `./sdk[transformers]` and
+`./sdk[keras]`). See [`docs/live-runs.md`](docs/live-runs.md#using-a-training-framework)
+for the three snippets and honest framework limits.
+
 > **Tip:** on Windows, use `127.0.0.1` rather than `localhost`. Otherwise each request can take about 2 s because Windows tries IPv6 first.
 
 ### See the network while it trains
@@ -363,6 +375,16 @@ ruff check .
 ruff format --check .
 ```
 
+The SDK packaging check is also offline and does not install a framework:
+
+```powershell
+# from backend/ with .venv active; replace <scratch> with a writable folder
+.venv/Scripts/python -m pip wheel --no-build-isolation --no-deps ../sdk -w <scratch>/dist
+python -m venv <scratch>/clean
+<scratch>/clean/Scripts/python -m pip install --no-index <scratch>/dist/neurovision_client-0.1.0-py3-none-any.whl
+<scratch>/clean/Scripts/python -c "import neurovision_client, neurovision_callbacks; print(neurovision_client.__version__)"
+```
+
 ```powershell
 # frontend/
 npm run lint        # oxlint
@@ -388,7 +410,7 @@ npm run build
 | [`docs/neural-lab.md`](docs/neural-lab.md) | Neural Lab: configure and train ten model families live |
 | [`docs/supported-models.md`](docs/supported-models.md) | Which models work in the Studio, the Model Explorer and Live Runs; linking a run to its graph |
 | [`docs/vision-benchmarks.md`](docs/vision-benchmarks.md) | Seven real vision models: speed, load, accuracy, 2D/3D views, attention, GPU fine-tuning |
-| [`docs/decisions/`](docs/decisions/) | Architecture decision records (0001–0010) |
+| [`docs/decisions/`](docs/decisions/) | Architecture decision records (0001–0012) |
 | [`PLAN.md`](PLAN.md) | Milestones and acceptance criteria |
 | [`SKILLS.md`](SKILLS.md) | Engineering standards and skills checklist |
 
@@ -423,7 +445,8 @@ The project is built milestone by milestone, and each milestone leaves the repos
 | — | Classical ML Lab (9 algorithms), Neural Lab (10 model families), custom visuals in Live Runs, scikit-learn models with tree view ([ADR 0010](docs/decisions/0010-more-algorithms.md)) | ✅ |
 | — | Live network graph for live runs (2D/3D, colored by activations, gradients or dead units) and demo set: MLP, CNN, self-attention, autoencoder ([ADR 0009](docs/decisions/0009-live-run-graphs.md)) | ✅ |
 | — | System and GPU telemetry with ETA in Live Runs; heavy-model support in the Model Explorer (wrapped 2D/3D layouts, photo inputs, capture on request, per-map contrast, video tensors) and [benchmarks](docs/vision-benchmarks.md) | ✅ |
-| Next | Learning Mode, saved projects, deployment | planned |
+| — | Lightning, Hugging Face Trainer and Keras callbacks; pip-installable `neurovision-client` SDK | ✅ |
+| 8 (in progress) | Versioned architecture project save/load; experiment history, run comparison/export and authentication remain | 🚧 |
 
 See [`PLAN.md`](PLAN.md) for the detailed tasks and acceptance criteria.
 

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neurovision-client"
+version = "0.1.0"
+description = "Stream your own training to NeuroVision Live Runs"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+torch = ["torch>=2.1"]
+system = ["psutil", "nvidia-ml-py"]
+lightning = ["lightning>=2.0"]
+transformers = ["transformers>=4.40", "torch>=2.1", "accelerate>=1.1"]
+keras = ["keras>=3.0"]
+
+[tool.setuptools]
+py-modules = ["neurovision_client", "neurovision_callbacks"]

@@ -52,6 +52,106 @@ with run:                                   # marks the run failed on an excepti
 Without `with`, call `run.finish()` at the end (or
 `run.finish("failed", "why")`).
 
+## Using a training framework
+
+Install the SDK from the repository with `pip install ./sdk`. The base
+package has no required dependencies; install the framework extra in the
+environment that already contains the framework, for example
+`pip install "./sdk[lightning]"`. The callbacks are created lazily, so a
+script that imports `neurovision_callbacks` does not need all three frameworks
+installed.
+
+### PyTorch Lightning
+
+Add one callback to the normal trainer. Lightning reports train and validation
+metrics at the epoch boundary, and the callback merges logs that share the
+same global step before sending them.
+
+```python
+from neurovision_callbacks import LightningCallback
+
+callback = LightningCallback(
+    url="http://127.0.0.1:8000",
+    control=True,
+    activation_layers=["net.1"],
+    probe_batch=x_val[:1],
+)
+trainer = pl.Trainer(callbacks=[callback], max_epochs=20)
+trainer.fit(model, train_loader, val_loader)
+```
+
+Lightning supports pause, resume and stop when `control=True`, plus
+checkpoint and learning-rate commands when `checkpoint_dir` and an optimizer
+without a scheduler are available. Health statistics use the same
+`HealthMonitor` as the raw client.
+
+### Hugging Face Trainer
+
+The callback follows the installed `Trainer` hook order: optimizer step,
+scheduler step, `on_step_end`, then logging/evaluation. A model can be built
+from a config, so no model or tokenizer download is required for local tests.
+
+```python
+from neurovision_callbacks import HuggingFaceCallback
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
+    callbacks=[HuggingFaceCallback(url="http://127.0.0.1:8000")],
+)
+trainer.train()
+```
+
+`eval_loss` and `eval_accuracy` become `val_loss` and `val_accuracy`, while
+runtime and throughput summaries are omitted. Hugging Face's scheduler owns
+the learning rate, so `set_lr` is not exposed. With a `probe_batch` dictionary
+such as tokenizer output, selected activations can still be captured; graph
+linking is not attempted for dictionary inputs.
+
+### Keras
+
+Keras receives the callback through `model.fit`:
+
+```python
+from neurovision_callbacks import KerasCallback
+
+model.fit(
+    x_train,
+    y_train,
+    validation_split=0.2,
+    callbacks=[KerasCallback(url="http://127.0.0.1:8000", control=True)],
+)
+```
+
+The callback adapts Keras' optimizer learning-rate property to the client's
+parameter-group interface, so `set_lr` works for a scalar learning rate. A
+Keras learning-rate schedule does not expose that control. Activation probes
+build a small sub-model and therefore require a Functional or Sequential
+model; subclassed models log metrics but skip activations.
+
+Runnable no-download examples are in
+[`sdk/examples/train_lightning.py`](../sdk/examples/train_lightning.py),
+[`sdk/examples/train_hf_trainer.py`](../sdk/examples/train_hf_trainer.py) and
+[`sdk/examples/train_keras.py`](../sdk/examples/train_keras.py). The exact
+installed framework versions used by the integration tests are pinned in
+`backend/requirements-dev.txt`.
+
+### Framework callback limits
+
+- Hugging Face Trainer and Keras do not provide a reliable exception hook.
+  If the script crashes, the client marks the run failed from its `atexit`
+  handler when the process exits; the dashboard cannot report the crash at the
+  exact line where it happened.
+- Hugging Face dashboard checkpoints save model weights with
+  `save_pretrained`, not optimizer or scheduler state.
+- `set_lr` is unavailable for Hugging Face, Lightning with a scheduler, and
+  Keras with a learning-rate schedule.
+- Keras has no PyTorch-style gradient/weight health statistics.
+- Only Lightning rank zero and Hugging Face world-process zero log in
+  distributed training.
+
 A complete, runnable example trains a small MLP on a synthetic spiral
 (no downloads):
 

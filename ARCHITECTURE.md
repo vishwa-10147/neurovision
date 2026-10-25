@@ -60,17 +60,22 @@ flowchart TB
 
 ### Frontend
 
--   `app/`: routes and application shell.
--   `features/architecture-studio/`: model configuration and editing.
+-   `app/`: application shell, sections, and the shared model view.
+-   `features/architecture-studio/`: model configuration, editing,
+    forward passes, and saved projects.
 -   `features/visualization-2d/`: 2D node, edge, and signal rendering.
 -   `features/visualization-3d/`: Three.js scene, camera, selection, and
     rendering.
 -   `features/training-lab/`: training controls, progress, charts, and
     event display.
--   `features/model-import/`: upload, parsing status, graph and tensor
-    exploration.
--   `features/learning-mode/`: contextual explanations and guided
-    exercises.
+-   `features/model-import/`: upload, parsing status, ONNX runs, and
+    graph and tensor exploration (feature maps, filters, attention).
+-   `features/live-runs/`: external runs from users' own scripts: charts,
+    health, system telemetry, controls, custom visuals, and the live graph.
+-   `features/classical/`: the Classical ML Lab (scikit-learn algorithms).
+-   `features/neural-lab/`: launching bundled training scripts.
+-   `features/planned/`: placeholders for planned sections. Learning Mode
+    (contextual explanations and guided exercises) is planned.
 -   `components/inspector/`: selected graph element details.
 -   `stores/`: shared state and selected IDs.
 -   `api/`: typed API client.
@@ -80,19 +85,33 @@ flowchart TB
 
 -   `api/routes/`: HTTP and WebSocket endpoints.
 -   `schemas/`: Pydantic request/response models.
--   `services/graph_normalizer.py`: convert source-specific metadata
-    into the normalized graph contract.
--   `services/model_importer.py`: validate and parse supported model
-    formats.
--   `services/inference_service.py`: inference boundary and
-    runtime-specific logic.
+-   `services/educational_graph.py`: build the normalized graph for an
+    educational dense network.
+-   `services/onnx_importer.py`: parse ONNX models into the normalized
+    graph without executing them.
+-   `services/onnx_runtime.py`: run imported ONNX models in an isolated,
+    time- and memory-limited worker process (`ml/onnx_worker.py`).
+-   `services/inference.py`: forward passes and bounded tensor access for
+    educational models; `services/tensors.py`: bounded tensor summaries
+    and slices shared by every model source.
+-   `services/model_repository.py`: storage for created and imported
+    models, behind an interface.
+-   `services/training_jobs.py`: background training jobs;
+    `services/event_stream.py`: replayable per-run event history shared
+    by jobs and external runs.
+-   `services/external_runs.py` and `services/run_health.py`: runs
+    streamed from users' scripts, and their health alerts.
+-   `services/project_store.py`: atomic, versioned local project files.
+-   `services/classical.py` and `services/lab.py`: the Classical ML Lab
+    and the Neural Lab.
 -   `ml/educational_network.py`: configurable educational PyTorch
-    network.
+    network with explicit activation capture.
 -   `ml/trainer.py`: training loops, cancellation, and metrics.
--   `ml/hooks.py`: controlled activation and gradient capture.
 -   `ml/datasets.py`: deterministic sample datasets.
--   `core/config.py`: environment-backed settings.
--   `core/security.py`: upload policy and related safeguards.
+-   `ml/tensor_maps.py`: bounded 2D views of tensors.
+-   `core/config.py`: environment-backed settings, including upload and
+    job limits.
+-   `core/errors.py`: the shared error envelope.
 
 Do not place long-running training loops inside request handlers or
 block the ASGI event loop.
