@@ -343,7 +343,8 @@ Every logged step also carries elapsed time, step time, an ETA, throughput (`sam
 | `POST /api/v1/runs` | Start an external run from your own script |
 | `POST /api/v1/runs/{run_id}/events` | Log a batch of steps (write token required) |
 | `POST /api/v1/runs/{run_id}/finish` | Mark an external run completed or failed |
-| `GET /api/v1/runs` | List external runs |
+| `GET /api/v1/runs` | List external runs (saved runs come back after a restart) |
+| `GET /api/v1/runs/{run_id}/metrics.csv` | A run's metrics by step, as CSV |
 | `POST /api/v1/runs/{run_id}/commands` | Pause, resume, stop, checkpoint or set the learning rate of a run that opted in |
 | `GET /api/v1/runs/{run_id}/commands` | Pending commands, for the script (write token required) |
 | `POST /api/v1/runs/{run_id}/commands/{command_id}/ack` | The script reports a command as applied or rejected |
@@ -410,7 +411,7 @@ npm run build
 | [`docs/neural-lab.md`](docs/neural-lab.md) | Neural Lab: configure and train ten model families live |
 | [`docs/supported-models.md`](docs/supported-models.md) | Which models work in the Studio, the Model Explorer and Live Runs; linking a run to its graph |
 | [`docs/vision-benchmarks.md`](docs/vision-benchmarks.md) | Seven real vision models: speed, load, accuracy, 2D/3D views, attention, GPU fine-tuning |
-| [`docs/decisions/`](docs/decisions/) | Architecture decision records (0001–0012) |
+| [`docs/decisions/`](docs/decisions/) | Architecture decision records (0001–0013) |
 | [`PLAN.md`](PLAN.md) | Milestones and acceptance criteria |
 | [`SKILLS.md`](SKILLS.md) | Engineering standards and skills checklist |
 
@@ -446,7 +447,7 @@ The project is built milestone by milestone, and each milestone leaves the repos
 | — | Live network graph for live runs (2D/3D, colored by activations, gradients or dead units) and demo set: MLP, CNN, self-attention, autoencoder ([ADR 0009](docs/decisions/0009-live-run-graphs.md)) | ✅ |
 | — | System and GPU telemetry with ETA in Live Runs; heavy-model support in the Model Explorer (wrapped 2D/3D layouts, photo inputs, capture on request, per-map contrast, video tensors) and [benchmarks](docs/vision-benchmarks.md) | ✅ |
 | — | Lightning, Hugging Face Trainer and Keras callbacks; pip-installable `neurovision-client` SDK | ✅ |
-| 8 (in progress) | Versioned architecture project save/load; experiment history, run comparison/export and authentication remain | 🚧 |
+| 8 (in progress) | Versioned architecture project save/load; saved Live Runs that survive restarts, run comparison and CSV export ([ADR 0013](docs/decisions/0013-saved-runs-and-comparison.md)); authentication and model storage remain | 🚧 |
 
 See [`PLAN.md`](PLAN.md) for the detailed tasks and acceptance criteria.
 

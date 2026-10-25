@@ -414,7 +414,7 @@ create runs and watch them. Keep it on a trusted network.
 | Steps per request          | 32; request body at most 2 MB                   |
 | Metrics / layers / values  | 16 / 8 / 256 per step, finite numbers only      |
 | Idle timeout               | 5 minutes without steps or heartbeats → run marked failed |
-| Retention                  | the 32 most recent finished runs, in memory     |
+| Retention                  | the 32 most recent finished runs, saved to `NEUROVISION_RUNS_DIR` |
 | Health per step            | 32 parameter groups, 32 activation layers       |
 | Alerts per run             | 200, then one "suppressed" notice               |
 | Pending commands           | 16 per run; learning rate in (0, 10]            |
@@ -422,10 +422,41 @@ create runs and watch them. Keep it on a trusted network.
 The client sends an empty batch (a heartbeat) after 60 seconds without
 steps, so long epochs do not time out. If the script crashes without
 finishing, the run is closed after the idle timeout with an explanation.
-Runs live in the backend's memory and are lost when it restarts.
+
+## Saved runs, comparison and export
+
+Every run is saved to disk (`NEUROVISION_RUNS_DIR`, default
+`data/runs` under the backend directory): when it starts, at most every
+5 seconds while it logs, when it finishes, and when the backend shuts
+down. Each file holds the run's metadata and its replay history: the
+started event, the logged steps, alerts, and the final event. Commands
+are not saved, and neither is the write token.
+
+When the backend starts again, saved runs are listed and replay exactly
+as before, but they are read-only: no script holds a valid token any
+more. A run that was still running when the backend stopped comes back
+as **failed**, with a message saying the backend restarted; its logged
+steps are kept (if the backend crashed, up to the last 5 seconds of
+steps may be missing). Unreadable files are skipped. The live network
+graph is not shown for a reloaded run: imported models are kept in memory
+only, so the linked model is gone after a restart.
+
+To **compare** runs, tick **Compare** on two or more runs in the list
+(up to 6). The comparison shows one chart per metric family with every
+selected run's curves overlaid by step, one color per run; validation
+and other variants of a metric are dashed in the run's color. Runs that
+share a name (e.g. two runs of the same script) are told apart by their
+run IDs. A run still training keeps updating in the comparison.
+
+To **export** a run's metrics, use **Download metrics (CSV)** under the
+run, or the links in the comparison, or
+`GET /api/v1/runs/{run_id}/metrics.csv`: one row per logged step with
+`step`, `epoch`, and one column per metric (blank where a step did not
+log that metric).
 
 The REST endpoints are described in [api.md](api.md#external-runs) and
-the design in [ADR 0006](decisions/0006-external-runs.md) and, for health
-and controls, [ADR 0008](decisions/0008-run-health-and-controls.md). The
+the design in [ADR 0006](decisions/0006-external-runs.md), for health
+and controls in [ADR 0008](decisions/0008-run-health-and-controls.md), and for
+saved runs in [ADR 0013](decisions/0013-saved-runs-and-comparison.md). The
 example [`sdk/examples/train_spiral.py`](../sdk/examples/train_spiral.py)
 uses all of it; run it with `--lr 0.5` to see alerts fire.

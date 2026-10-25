@@ -1,6 +1,11 @@
 import type { CommandKind, RunCommand } from '../types/events'
 import { RunCommandSchema, RunListSchema, type RunInfo } from '../types/runs'
-import { request } from './client'
+import { API_BASE_URL, request } from './client'
+
+/** Every logged step's metrics as a CSV download. */
+export function runMetricsCsvUrl(runId: string): string {
+  return `${API_BASE_URL}/api/v1/runs/${encodeURIComponent(runId)}/metrics.csv`
+}
 
 export async function listRuns(signal?: AbortSignal): Promise<RunInfo[]> {
   return (await request('/runs', RunListSchema, { signal })).runs

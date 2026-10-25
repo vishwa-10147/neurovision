@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { API_BASE_URL } from '../../api/client'
-import { listRuns } from '../../api/runs'
+import { listRuns, runMetricsCsvUrl } from '../../api/runs'
 import { ErrorBoundary } from '../../components/states/ErrorBoundary'
 import { EmptyState, ErrorState, LoadingState } from '../../components/states/StateViews'
 import { formatValue } from '../../lib/values'
@@ -8,11 +8,13 @@ import { useLiveRunStore, type HealthPoint, type WatchedRun } from '../../stores
 import type { RunInfo, RunPoint } from '../../types/runs'
 import { ActivationStrips } from '../training-lab/TrainingResults'
 import { useEventStream } from '../training-lab/useTrainingStream'
+import { RunComparison } from './RunComparison'
 import { RunControls } from './RunControls'
 import { LayerHealth, RunAlerts } from './RunHealth'
 import { LiveGraph } from './LiveGraph'
 import { RunSystem } from './RunSystem'
 import { RunVisuals } from './RunVisuals'
+import { MAX_COMPARED_RUNS } from './series'
 import { formatDuration, systemRow } from './system'
 
 const RunMetricCharts = lazy(() => import('../training-lab/MetricCharts').then((m) => ({ default: m.RunMetricCharts })))
@@ -48,6 +50,11 @@ export function LiveRuns() {
     }
   }, [runs, pendingRunName, watch, expect])
   const { reconnect } = useEventStream(run?.runId ?? null, run !== null, applyEvents, setStream)
+  // Runs chosen for comparison, in the order of the list.
+  const [compareIds, setCompareIds] = useState<string[]>([])
+  const compared = runs?.filter((info) => compareIds.includes(info.run_id)) ?? []
+  const toggleCompare = (runId: string) =>
+    setCompareIds((ids) => (ids.includes(runId) ? ids.filter((id) => id !== runId) : [...ids, runId]))
 
   return (
     <section aria-labelledby="runs-title" className="training">
@@ -82,12 +89,26 @@ export function LiveRuns() {
                       {info.alerts > 0 && ` · ${info.alerts} alert${info.alerts === 1 ? '' : 's'}`}
                     </span>
                   </button>
+                  <label className="run-compare muted">
+                    <input
+                      type="checkbox"
+                      aria-label={`Compare ${info.name}`}
+                      checked={compareIds.includes(info.run_id)}
+                      disabled={!compareIds.includes(info.run_id) && compared.length >= MAX_COMPARED_RUNS}
+                      onChange={() => toggleCompare(info.run_id)}
+                    />
+                    Compare
+                  </label>
                 </li>
               ))}
             </ul>
           )}
         </div>
         <div className="training-main">
+          {compared.length >= 2 && <RunComparison runs={compared} />}
+          {compared.length === 1 && (
+            <p className="card muted">Select at least one more run to compare their metric curves.</p>
+          )}
           {run ? (
             <>
               <div className="card">
@@ -153,9 +174,11 @@ export function LiveRuns() {
               />
             </>
           ) : (
-            <div className="card">
-              <GettingStarted hasRuns={(runs?.length ?? 0) > 0} />
-            </div>
+            compared.length < 2 && (
+              <div className="card">
+                <GettingStarted hasRuns={(runs?.length ?? 0) > 0} />
+              </div>
+            )
           )}
         </div>
       </div>
@@ -247,6 +270,13 @@ function RunProgress({
         </dl>
       )}
       {!latest && <p className="muted">Waiting for the first logged step…</p>}
+      {latest && (
+        <p className="muted">
+          <a href={runMetricsCsvUrl(run.runId)} download>
+            Download metrics (CSV)
+          </a>
+        </p>
+      )}
     </div>
   )
 }

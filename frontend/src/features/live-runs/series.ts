@@ -31,6 +31,46 @@ export function groupMetrics(points: RunPoint[]): MetricGroup[] {
   })
 }
 
+/** At most this many runs are compared at once, each in its own color. */
+export const MAX_COMPARED_RUNS = 6
+export const COMPARE_COLORS = [
+  'var(--chart-train)',
+  'var(--chart-val)',
+  'var(--ok)',
+  'var(--unit-hidden)',
+  'var(--bad)',
+  'var(--unit-input)',
+]
+
+/** A run shown in a comparison: its metric curves are overlaid by step. */
+export interface ComparedRun {
+  runId: string
+  name: string
+  points: RunPoint[]
+}
+
+/** One step of a comparison; a run that did not log this step has no entry. */
+export interface ComparisonRow {
+  step: number
+  byRun: Record<string, Record<string, number>>
+}
+
+/** Each run thinned like chartRows, then merged into rows sorted by step. */
+export function comparisonRows(runs: ComparedRun[], limit = MAX_CHART_POINTS): ComparisonRow[] {
+  const rows = new Map<number, ComparisonRow>()
+  for (const run of runs) {
+    for (const point of chartRows(run.points, limit)) {
+      let row = rows.get(point.step)
+      if (!row) {
+        row = { step: point.step, byRun: {} }
+        rows.set(point.step, row)
+      }
+      row.byRun[run.runId] = point.metrics
+    }
+  }
+  return [...rows.values()].sort((a, b) => a.step - b.step)
+}
+
 /** Points for Recharts, evenly thinned to at most `limit`, always keeping the last. */
 export function chartRows(points: RunPoint[], limit = MAX_CHART_POINTS): RunPoint[] {
   if (points.length <= limit) return points

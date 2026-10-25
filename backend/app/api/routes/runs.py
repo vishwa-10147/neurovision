@@ -4,9 +4,11 @@ Follow a run's events with the same WebSocket as built-in jobs:
 WS /api/v1/training/{run_id}/events.
 """
 
+import csv
+import io
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Path, Request, status
+from fastapi import APIRouter, Depends, Header, Path, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
@@ -92,6 +94,13 @@ def _writable(
     run = runs.get(run_id)
     if run is None:
         raise not_found(f"Run '{run_id}' was not found. It may have expired.")
+    if run.read_only:
+        raise ApiError(
+            409,
+            "conflict",
+            "This run was saved before the backend restarted and is read-only. "
+            "Start a new run.",
+        )
     scheme, _, token = (authorization or "").partition(" ")
     if scheme.lower() != "bearer" or not token:
         raise ApiError(
@@ -130,6 +139,37 @@ def get_run(run_id: RunId, runs: Runs) -> RunInfo:
     if run is None:
         raise not_found(f"Run '{run_id}' was not found. It may have expired.")
     return run.info()
+
+
+def _csv_cell(value: str) -> str:
+    # Metric names come from scripts; keep spreadsheets from running them as
+    # formulas.
+    return f"'{value}" if value[:1] in ("=", "+", "-", "@") else value
+
+
+@router.get(
+    "/{run_id}/metrics.csv",
+    response_class=Response,
+    responses={
+        200: {"content": {"text/csv": {}}, "description": "Metrics by step."},
+        404: ERRORS[404],
+    },
+)
+def export_metrics(run_id: RunId, runs: Runs) -> Response:
+    """Every logged step's metrics as CSV: step, epoch, then one column per metric."""
+    run = runs.get(run_id)
+    if run is None:
+        raise not_found(f"Run '{run_id}' was not found. It may have expired.")
+    header, rows = run.metric_table()
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow([_csv_cell(name) for name in header])
+    writer.writerows(rows)
+    return Response(
+        buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{run_id}-metrics.csv"'},
+    )
 
 
 @router.post(

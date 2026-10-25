@@ -337,6 +337,30 @@ and `alerts`. Tokens are never included. A run with no events or
 heartbeats for 5 minutes is marked `failed` when the API is next
 accessed.
 
+Runs are saved to `NEUROVISION_RUNS_DIR` (default `data/runs`) and
+listed again after a backend restart, as read-only runs (`409` for any
+write, whatever the token). A run that was `running` when the backend stopped comes back as
+`failed` with a `training.failed` event saying the backend restarted.
+A reloaded run's `model_id` is `null`: imported models are kept in
+memory only, so the linked model no longer exists.
+The 32 most recent finished runs are kept; older files are deleted.
+
+### `GET /runs/{run_id}/metrics.csv`
+
+Every logged step's metrics as `text/csv`
+(`Content-Disposition: attachment; filename="<run_id>-metrics.csv"`):
+
+``` text
+step,epoch,loss,val_loss
+5,1,0.5,
+10,2,0.25,0.375
+```
+
+Columns are `step`, `epoch`, then every metric name the run logged, in
+alphabetical order; a cell is empty when a step did not log that metric.
+Metric names starting with `=`, `+`, `-` or `@` are prefixed with `'` so
+spreadsheets do not treat them as formulas. `404` if the run is unknown.
+
 ### Run commands
 
 Two-way control for runs whose script opted in (`controls`, ADR 0008).

@@ -5,10 +5,14 @@ logged steps. Each run is an EventStream, so the training WebSocket replays
 and follows it like a built-in job. Memory stays bounded: a run accepts at
 most MAX_STEPS_PER_RUN steps, and only its latest step keeps activations in
 the replay history (the UI shows only the latest anyway).
+
+With a RunStore, runs are saved to disk and reloaded at startup as read-only
+replays (ADR 0013); a run still running at shutdown comes back as failed.
 """
 
 import hashlib
 import hmac
+import logging
 import secrets
 import threading
 import time
@@ -40,6 +44,14 @@ from app.schemas.runs import (
 )
 from app.services.event_stream import Event, EventStream
 from app.services.run_health import HealthRules
+from app.services.run_store import (
+    RUN_SCHEMA_VERSION,
+    STORED_EVENTS,
+    RunStore,
+    StoredRun,
+)
+
+logger = logging.getLogger(__name__)
 
 # Alerts a run may publish before further ones are suppressed.
 MAX_ALERTS_PER_RUN = 200
@@ -55,6 +67,12 @@ STALE_MESSAGE = (
     "The script may have stopped without calling run.finish()."
 )
 FAILED_MESSAGE = "The training script reported a failure."
+RESTARTED_MESSAGE = (
+    "The NeuroVision backend restarted while this run was active, so it was "
+    "closed. The steps logged before the restart are kept."
+)
+# A running run is saved at most this often; finishing saves it at once.
+SAVE_INTERVAL_S = 5.0
 
 
 def _digest(token: str) -> bytes:
@@ -62,7 +80,13 @@ def _digest(token: str) -> bytes:
 
 
 class ExternalRun(EventStream):
-    def __init__(self, request: RunCreate, token: str, now: float) -> None:
+    def __init__(
+        self,
+        request: RunCreate,
+        token: str,
+        now: float,
+        store: RunStore | None = None,
+    ) -> None:
         super().__init__()
         self.run_id = f"run_{secrets.token_hex(6)}"
         self.name = request.name
@@ -75,7 +99,10 @@ class ExternalRun(EventStream):
         self.created_at = now
         self.last_event_at = now
         self._last_metrics: dict[str, float] = {}
-        self._token_digest = _digest(token)
+        # None for a run reloaded from disk: tokens are never stored.
+        self._token_digest: bytes | None = _digest(token)
+        self._store = store
+        self._saved_at = now
         # Serializes ingest, commands, finish, and expiry so checks and
         # publishing agree.
         self.ingest_lock = threading.Lock()
@@ -100,6 +127,85 @@ class ExternalRun(EventStream):
                 total_epochs=self.total_epochs,
             ).model_dump(mode="json")
         )
+        self._persist(now, force=True)
+
+    @classmethod
+    def restore(cls, stored: StoredRun, store: RunStore, now: float) -> "ExternalRun":
+        """A read-only run from disk; one left running is marked failed."""
+        # No model_id: imported models live in memory, so after a restart the
+        # link would point at a model that no longer exists.
+        request = RunCreate(
+            name=stored.name,
+            total_epochs=stored.total_epochs,
+            controls=stored.controls,
+        )
+        run = cls(request, secrets.token_urlsafe(32), stored.created_at)
+        run.run_id = stored.run_id
+        run._token_digest = None
+        run._events = list(stored.events)
+        run.status = stored.status
+        run.epoch, run.step = stored.epoch, stored.step
+        run.steps_logged = stored.steps_logged
+        run.last_event_at = stored.last_event_at
+        run.learning_rate = stored.learning_rate
+        run.alerts = stored.alerts
+        steps = [e for e in stored.events if e["event_type"] == "training.step"]
+        run._last_metrics = steps[-1]["metrics"] if steps else {}
+        run._store = store
+        if run.active:
+            with run.ingest_lock:
+                run._fail(RESTARTED_MESSAGE, now)
+        return run
+
+    def snapshot(self) -> StoredRun:
+        with self._lock:
+            events = [e for e in self._events if e["event_type"] in STORED_EVENTS]
+        return StoredRun(
+            schema_version=RUN_SCHEMA_VERSION,
+            run_id=self.run_id,
+            name=self.name,
+            model_id=self.model_id,
+            status=self.status,
+            total_epochs=self.total_epochs,
+            epoch=self.epoch,
+            step=self.step,
+            steps_logged=self.steps_logged,
+            created_at=self.created_at,
+            last_event_at=self.last_event_at,
+            controls=self.controls,
+            learning_rate=self.learning_rate,
+            alerts=self.alerts,
+            events=events,
+        )
+
+    def _persist(self, now: float, force: bool = False) -> None:
+        """Save to the store, at most every SAVE_INTERVAL_S unless forced."""
+        if self._store is None:
+            return
+        if not force and now - self._saved_at < SAVE_INTERVAL_S:
+            return
+        self._saved_at = now
+        try:
+            self._store.save(self.snapshot())
+        except OSError:
+            # A full or read-only disk must not stop the live run.
+            logger.exception("Could not save run %s", self.run_id)
+
+    def save(self) -> None:
+        with self.ingest_lock:
+            self._persist(self.last_event_at, force=True)
+
+    def metric_table(self) -> tuple[list[str], list[list[str]]]:
+        """Logged metrics by step: the CSV header and rows."""
+        with self._lock:
+            steps = [e for e in self._events if e["event_type"] == "training.step"]
+        names = sorted({name for e in steps for name in e["metrics"]})
+        rows = [
+            [str(e["step"]), str(e["epoch"])]
+            + [repr(e["metrics"][n]) if n in e["metrics"] else "" for n in names]
+            for e in steps
+        ]
+        return ["step", "epoch", *names], rows
 
     @property
     def _base(self) -> dict[str, str]:
@@ -109,7 +215,14 @@ class ExternalRun(EventStream):
     def active(self) -> bool:
         return self.status == "running"
 
+    @property
+    def read_only(self) -> bool:
+        """Reloaded from disk: no script can write to it any more."""
+        return self._token_digest is None
+
     def token_matches(self, token: str) -> bool:
+        if self._token_digest is None:
+            return False
         return hmac.compare_digest(self._token_digest, _digest(token))
 
     def info(self) -> RunInfo:
@@ -189,6 +302,7 @@ class ExternalRun(EventStream):
                     )
             self.steps_logged += len(steps)
             self.last_event_at = now
+            self._persist(now)
             return len(steps)
 
     # Commands -------------------------------------------------------------
@@ -350,7 +464,10 @@ class ExternalRun(EventStream):
                     ).model_dump(mode="json")
                 )
             else:
+                # Saves the run itself.
                 self._fail(request.message or FAILED_MESSAGE, now)
+                return
+            self._persist(now, force=True)
 
     def expire_if_idle(self, now: float) -> None:
         with self.ingest_lock:
@@ -366,6 +483,7 @@ class ExternalRun(EventStream):
                 **self._base, event_type="training.failed", message=message
             ).model_dump(mode="json")
         )
+        self._persist(now, force=True)
 
     def _require_running(self) -> None:
         if not self.active:
@@ -409,12 +527,36 @@ class ExternalRunManager:
         max_active: int = 8,
         retained: int = 32,
         clock: Callable[[], float] = time.time,
+        store: RunStore | None = None,
     ) -> None:
         self._max_active = max_active
         self._retained = retained
         self._clock = clock
+        self._store = store
         self._runs: OrderedDict[str, ExternalRun] = OrderedDict()
         self._lock = threading.Lock()
+        if store is not None:
+            self._reload(store)
+
+    def _reload(self, store: RunStore) -> None:
+        """Bring back saved runs, oldest first, within the retention limit."""
+        now = self._clock()
+        for stored in store.load_all():
+            try:
+                run = ExternalRun.restore(stored, store, now)
+            except ValueError:
+                # E.g. a hand-edited name that no longer validates.
+                logger.warning("Skipped unreadable saved run %s", stored.run_id)
+                continue
+            self._runs[run.run_id] = run
+        self._trim()
+
+    def flush(self) -> None:
+        """Save active runs now, e.g. at shutdown."""
+        with self._lock:
+            runs = [run for run in self._runs.values() if run.active]
+        for run in runs:
+            run.save()
 
     def create(self, request: RunCreate) -> tuple[ExternalRun, str]:
         self.expire_idle()
@@ -427,7 +569,7 @@ class ExternalRunManager:
                     f"{self._max_active} external runs are already active. "
                     "Finish one (run.finish()) or wait for idle runs to time out.",
                 )
-            run = ExternalRun(request, token, self._clock())
+            run = ExternalRun(request, token, self._clock(), self._store)
             self._runs[run.run_id] = run
             self._trim()
         return run, token
@@ -458,3 +600,5 @@ class ExternalRunManager:
         finished = [rid for rid, run in self._runs.items() if not run.active]
         for run_id in finished[: max(0, len(self._runs) - self._retained)]:
             del self._runs[run_id]
+            if self._store is not None:
+                self._store.delete(run_id)

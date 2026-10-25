@@ -23,6 +23,7 @@ from app.services.lab import LabManager
 from app.services.model_repository import InMemoryModelRepository
 from app.services.onnx_runtime import OnnxRuntimeService
 from app.services.project_store import ProjectStore
+from app.services.run_store import RunStore
 from app.services.training_jobs import TrainingJobManager
 
 API_PREFIX = "/api/v1"
@@ -42,6 +43,8 @@ def create_app() -> FastAPI:
         yield
         # Cancel running jobs and wait for their threads before exiting.
         jobs.shutdown()
+        # Active external runs come back as failed after the restart.
+        app.state.external_runs.flush()
         onnx_runtime.close()
         app.state.lab.shutdown()
 
@@ -55,7 +58,9 @@ def create_app() -> FastAPI:
     register_error_handlers(app)
     app.state.training_jobs = jobs
     app.state.onnx_runtime = onnx_runtime
-    app.state.external_runs = ExternalRunManager(max_active=settings.max_external_runs)
+    app.state.external_runs = ExternalRunManager(
+        max_active=settings.max_external_runs, store=RunStore(settings.runs_dir)
+    )
     app.state.lab = LabManager(
         python=settings.lab_python,
         max_jobs=settings.lab_max_jobs,

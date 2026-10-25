@@ -194,7 +194,7 @@ a runnable, testable state.
 
 -   [x] Save/load architecture definitions.
 -   [x] Add versioned project format.
--   [ ] Add experiment metadata and metrics history.
+-   [x] Add experiment metadata and metrics history.
 -   [ ] Introduce PostgreSQL only if multi-user persistence is required.
 -   [ ] Add file ownership and access control if user accounts are
     added.

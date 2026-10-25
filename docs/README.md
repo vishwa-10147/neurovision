@@ -41,3 +41,4 @@ For an overview of the whole system with its design rationale and measured evalu
 | [0010](decisions/0010-more-algorithms.md) | Classical ML, Neural Lab and custom Live Run visuals |
 | [0011](decisions/0011-framework-callbacks.md) | Lazy framework callbacks, merged steps and pip packaging |
 | [0012](decisions/0012-local-project-persistence.md) | Versioned local project persistence without a premature database |
+| [0013](decisions/0013-saved-runs-and-comparison.md) | Saved external runs that survive restarts, run comparison and CSV export |

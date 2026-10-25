@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RunPoint } from '../../types/runs'
-import { chartRows, groupMetrics } from './series'
+import { chartRows, comparisonRows, groupMetrics } from './series'
 
 const point = (step: number, metrics: Record<string, number>): RunPoint => ({ epoch: step, step, metrics })
 
@@ -17,6 +17,18 @@ describe('run chart series', () => {
       { title: 'lr', keys: ['lr'], percent: false },
       // Out of [0, 1], so not shown as a percentage even though it says acc.
       { title: 'top5_acc', keys: ['top5_acc'], percent: false },
+    ])
+  })
+
+  it('merges compared runs by step', () => {
+    const rows = comparisonRows([
+      { runId: 'a', name: 'A', points: [point(1, { loss: 2 }), point(3, { loss: 1 })] },
+      { runId: 'b', name: 'B', points: [point(2, { loss: 4 }), point(3, { loss: 3 })] },
+    ])
+    expect(rows).toEqual([
+      { step: 1, byRun: { a: { loss: 2 } } },
+      { step: 2, byRun: { b: { loss: 4 } } },
+      { step: 3, byRun: { a: { loss: 1 }, b: { loss: 3 } } },
     ])
   })
 
